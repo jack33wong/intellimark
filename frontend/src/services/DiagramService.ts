@@ -163,6 +163,11 @@ export class DiagramService {
                             const qContext = `${qText} ${rawHintText.toLowerCase()} ${localAfterText}`;
                             data._rawHint = rawHintText;
                             data._qContext = qContext;
+                            // Preserve case-sensitive context including afterRaw so sentences below the diagram are captured
+                            data._rawCaseContext = `${beforeRaw.substring(lastSubQ >= 0 ? lastSubQ : 0)} ${rawHintText} ${afterRaw}`;
+
+                            // [CRITICAL] Resolve and rectify vertex map after context strings are attached
+                            this.resolveVertexMap(data);
 
                             // If AI omitted layers or failed to extract shapes from _rawHint when _rawHint explicitly lists shape vertices,
                             // deterministically parse the shapes and grid bounds from _rawHint!
@@ -506,10 +511,6 @@ export class DiagramService {
                                 replacement = this.renderNumberMachineFromHint(desc);
                             } else if (lowerDesc.includes("cylinder") || lowerDesc.includes("cuboid") || lowerDesc.includes("cone") || lowerDesc.includes("sphere")) {
                                 replacement = this.renderSolid3DFromHint(desc);
-                            } else if (lowerDesc.includes("equilateral triangle bcx") || (lowerDesc.includes("cdyx") && lowerDesc.includes("square"))) {
-                                replacement = this.renderRegularPolygonConstruction();
-                            } else if (lowerDesc.includes("triangle edc") && lowerDesc.includes("triangle abd")) {
-                                replacement = this.renderParallelTrianglesConstruction();
                             } else {
                                 replacement = this.renderFallbackBox(desc);
                             }
@@ -859,14 +860,355 @@ export class DiagramService {
     }
 
     /**
+     * Resolves top-level `vertices` / `vertex_map` dictionaries OR harvests vertex coordinates from point layers,
+     * runs `rectifyEuclideanGeometry`, and synchronizes all associated polygon/polyline/point layers.
+     */
+    private static resolveVertexMap(data: any): void {
+        if (!data || typeof data !== 'object' || data._verticesResolved) return;
+        data._verticesResolved = true;
+
+        if (!Array.isArray(data.layers)) data.layers = [];
+        const vertexMap = new Map<string, [number, number]>();
+
+        const rawMap = (data.vertex_map && typeof data.vertex_map === 'object' && !Array.isArray(data.vertex_map))
+            ? data.vertex_map
+            : (data.vertices && typeof data.vertices === 'object' && !Array.isArray(data.vertices) ? data.vertices : null);
+
+        if (rawMap) {
+            Object.entries(rawMap).forEach(([k, v]: [string, any]) => {
+                if (Array.isArray(v) && v.length >= 2) {
+                    const vx = parseFloat(v[0]);
+                    const vy = parseFloat(v[1]);
+                    if (Number.isFinite(vx) && Number.isFinite(vy)) {
+                        vertexMap.set(k.trim(), [vx, vy]);
+                    }
+                } else if (v && typeof v === 'object') {
+                    const vx = parseFloat(v.x);
+                    const vy = parseFloat(v.y);
+                    if (Number.isFinite(vx) && Number.isFinite(vy)) {
+                        vertexMap.set(k.trim(), [vx, vy]);
+                    }
+                }
+            });
+        }
+
+        if (data.vertices && !Array.isArray(data.vertices)) {
+            delete data.vertices;
+        }
+
+        // Fallback: harvest single-letter vertex coordinates from point layers if top-level dict was omitted
+        data.layers.forEach((l: any) => {
+            if (l.vertices && !Array.isArray(l.vertices)) {
+                delete l.vertices;
+            }
+            const lbl = String(l.label || '').trim();
+            if (/^[A-Z]$/.test(lbl) && !vertexMap.has(lbl)) {
+                const c = l.coords || l.coord || (Array.isArray(l.points) && l.points.length === 1 ? l.points[0] : null);
+                if (c) {
+                    const cx = parseFloat(Array.isArray(c) ? c[0] : c.x);
+                    const cy = parseFloat(Array.isArray(c) ? c[1] : c.y);
+                    if (Number.isFinite(cx) && Number.isFinite(cy)) {
+                        vertexMap.set(lbl, [cx, cy]);
+                    }
+                }
+            }
+        });
+
+        if (vertexMap.size === 0) return;
+
+        const oldVertexMap = new Map<string, [number, number]>();
+        vertexMap.forEach((pt, k) => oldVertexMap.set(k, [pt[0], pt[1]]));
+
+        // Enforce exact geometric constraints (squares, equilateral triangles, regular polygon chains)
+        this.rectifyEuclideanGeometry(vertexMap, data);
+
+        // Update layers with rectified coordinates
+        data.layers.forEach((l: any) => {
+            const refs = l.vertex_refs || l.refs;
+            if (Array.isArray(refs) && refs.length > 0) {
+                const resolved = refs
+                    .map((ref: any) => vertexMap.get(String(ref).trim()))
+                    .filter(Boolean) as [number, number][];
+                if (resolved.length > 0) {
+                    l.points = resolved.map(pt => [pt[0], pt[1]]);
+                }
+            } else if (Array.isArray(l.points) && l.points.length >= 2) {
+                l.points = l.points.map((p: any) => {
+                    const px = parseFloat(Array.isArray(p) ? p[0] : p?.x);
+                    const py = parseFloat(Array.isArray(p) ? p[1] : p?.y);
+                    if (!Number.isFinite(px) || !Number.isFinite(py)) return p;
+                    for (const [vName, oldPt] of Array.from(oldVertexMap.entries())) {
+                        if (Math.hypot(px - oldPt[0], py - oldPt[1]) < 0.25) {
+                            const newPt = vertexMap.get(vName)!;
+                            return [newPt[0], newPt[1]];
+                        }
+                    }
+                    return [px, py];
+                });
+            }
+
+            const lbl = String(l.label || '').trim();
+            if (lbl && vertexMap.has(lbl) && (l.shape_name === 'point' || l.type === 'point' || l.coords || l.coord)) {
+                const rectCoords = vertexMap.get(lbl)!;
+                if (l.coords) l.coords = [rectCoords[0], rectCoords[1]];
+                if (l.coord) l.coord = [rectCoords[0], rectCoords[1]];
+                if (Array.isArray(l.points) && l.points.length === 1) l.points = [[rectCoords[0], rectCoords[1]]];
+            }
+        });
+
+        // Ensure every vertex in vertexMap has a corresponding point label layer
+        const existingLabeledVertices = new Set<string>();
+        data.layers.forEach((l: any) => {
+            const lbl = String(l.label || '').trim();
+            if (lbl && (l.shape_name === 'point' || l.type === 'point' || l.coords || l.coord)) {
+                existingLabeledVertices.add(lbl);
+            }
+        });
+
+        vertexMap.forEach((coords, vName) => {
+            if (!existingLabeledVertices.has(vName)) {
+                data.layers.push({
+                    shape_name: 'point',
+                    coords: [coords[0], coords[1]],
+                    label: vName,
+                    hide_dot: true,
+                    purpose: 'reference'
+                });
+            }
+        });
+    }
+
+    /**
+     * Generic Euclidean Geometry Constraint Solver:
+     * Mathematically enforces 90° squares, 60° equilateral triangles, and regular polygon turns.
+     */
+    private static rectifyEuclideanGeometry(
+        vertexMap: Map<string, [number, number]>,
+        data: any
+    ): void {
+        const caseContext = `${data._rawCaseContext || ''} ${data._rawHint || ''} ${data.description || ''}`;
+        if (!caseContext.trim() || vertexMap.size < 3) return;
+
+        const fixedVertices = new Set<string>();
+        const processedSquares = new Set<string>();
+        const processedTriangles = new Set<string>();
+
+        // 1. GENERIC SQUARE RECTIFIER
+        const sqMatches = [
+            ...Array.from(caseContext.matchAll(/\b([A-Z]{4})\s+is\s+a\s+square\b/g)),
+            ...Array.from(caseContext.matchAll(/\bsquare\s+([A-Z]{4})\b/g))
+        ];
+        for (const m of sqMatches) {
+            const name = m[1];
+            const key = name.split('').sort().join('');
+            if (processedSquares.has(key)) continue;
+
+            const verts = name.split('');
+            if (!verts.every(v => vertexMap.has(v))) continue;
+            processedSquares.add(key);
+
+            const [v0, v1, v2, v3] = verts;
+            const p0 = [...vertexMap.get(v0)!] as [number, number];
+            const p1 = [...vertexMap.get(v1)!] as [number, number];
+            const p2 = vertexMap.get(v2);
+            const p3 = vertexMap.get(v3);
+
+            let dx = p1[0] - p0[0];
+            let dy = p1[1] - p0[1];
+            const len = Math.hypot(dx, dy) || 3;
+
+            const ang = Math.atan2(dy, dx);
+            if (Math.abs(Math.abs(ang) - Math.PI / 2) < 0.35) {
+                dx = 0;
+                dy = ang > 0 ? len : -len;
+                p1[0] = p0[0] + dx;
+                p1[1] = p0[1] + dy;
+                vertexMap.set(v1, p1);
+            } else if (Math.abs(ang) < 0.35 || Math.abs(Math.abs(ang) - Math.PI) < 0.35) {
+                dx = Math.cos(ang) > 0 ? len : -len;
+                dy = 0;
+                p1[0] = p0[0] + dx;
+                p1[1] = p0[1] + dy;
+                vertexMap.set(v1, p1);
+            }
+
+            const refPt = p2 || p3;
+            let nx = -dy, ny = dx;
+            if (refPt) {
+                const dot = (refPt[0] - p1[0]) * nx + (refPt[1] - p1[1]) * ny;
+                if (dot < 0) { nx = dy; ny = -dx; }
+            }
+            if (nx < 0 && Math.abs(ny) < 1e-3) {
+                nx = -nx;
+            }
+
+            const newP2: [number, number] = [+(p1[0] + nx).toFixed(3), +(p1[1] + ny).toFixed(3)];
+            const newP3: [number, number] = [+(p0[0] + nx).toFixed(3), +(p0[1] + ny).toFixed(3)];
+            vertexMap.set(v2, newP2);
+            vertexMap.set(v3, newP3);
+            verts.forEach(v => fixedVertices.add(v));
+
+            if (Array.isArray(data.layers)) {
+                const sqLayer = data.layers.find((l: any) => {
+                    const refs = l.vertex_refs || l.refs;
+                    if (Array.isArray(refs) && refs.length === 4 && verts.every(v => refs.includes(v))) return true;
+                    const pts = l.points || l.vertices;
+                    return !l.is_open && Array.isArray(pts) && pts.length === 4;
+                });
+                if (sqLayer) {
+                    sqLayer.vertex_refs = [v0, v1, v2, v3];
+                    sqLayer.points = [p0, p1, newP2, newP3];
+                }
+            }
+        }
+
+        // 2. GENERIC EQUILATERAL TRIANGLE RECTIFIER
+        const eqMatches = [
+            ...Array.from(caseContext.matchAll(/\b([A-Z]{3})\s+is\s+an\s+equilateral\s+triangle\b/g)),
+            ...Array.from(caseContext.matchAll(/\bequilateral\s+triangle\s+([A-Z]{3})\b/g))
+        ];
+        for (const m of eqMatches) {
+            const name = m[1];
+            const key = name.split('').sort().join('');
+            if (processedTriangles.has(key)) continue;
+
+            const verts = name.split('');
+            if (!verts.every(v => vertexMap.has(v))) continue;
+            processedTriangles.add(key);
+
+            const known = verts.filter(v => fixedVertices.has(v));
+            if (known.length === 3) continue;
+
+            const baseA = known.length === 2 ? known[0] : verts[0];
+            const baseB = known.length === 2 ? known[1] : verts[1];
+            const apex = verts.find(v => v !== baseA && v !== baseB)!;
+
+            const pA = vertexMap.get(baseA)!;
+            const pB = vertexMap.get(baseB)!;
+
+            const dx = pB[0] - pA[0];
+            const dy = pB[1] - pA[1];
+            const mx = (pA[0] + pB[0]) / 2;
+            const my = (pA[1] + pB[1]) / 2;
+            const h = Math.sqrt(3) / 2;
+
+            const cand1: [number, number] = [+(mx - dy * h).toFixed(3), +(my + dx * h).toFixed(3)];
+            const cand2: [number, number] = [+(mx + dy * h).toFixed(3), +(my - dx * h).toFixed(3)];
+
+            const otherFixedPts = Array.from(fixedVertices)
+                .filter(v => v !== baseA && v !== baseB && v !== apex)
+                .map(v => vertexMap.get(v)!)
+                .filter(Boolean);
+
+            let chosen = cand1;
+            if (otherFixedPts.length > 0) {
+                const dist1 = otherFixedPts.reduce((sum, pt) => sum + Math.hypot(cand1[0] - pt[0], cand1[1] - pt[1]), 0);
+                const dist2 = otherFixedPts.reduce((sum, pt) => sum + Math.hypot(cand2[0] - pt[0], cand2[1] - pt[1]), 0);
+                chosen = dist1 >= dist2 ? cand1 : cand2;
+            }
+
+            vertexMap.set(apex, chosen);
+            verts.forEach(v => fixedVertices.add(v));
+
+            if (Array.isArray(data.layers)) {
+                const triLayer = data.layers.find((l: any) => {
+                    const refs = l.vertex_refs || l.refs;
+                    if (Array.isArray(refs) && refs.length === 3 && verts.every(v => refs.includes(v))) return true;
+                    const pts = l.points || l.vertices;
+                    return !l.is_open && Array.isArray(pts) && pts.length === 3;
+                });
+                if (triLayer) {
+                    triLayer.vertex_refs = [baseA, baseB, apex];
+                    triLayer.points = [pA, pB, chosen];
+                }
+            }
+        }
+
+        // 3. GENERIC REGULAR POLYGON CHAIN RECTIFIER
+        if (/sides\s+of\s+a\s+regular\s+(?:[a-z0-9-]+\s+)?polygon/i.test(caseContext)) {
+            const segMatches = Array.from(caseContext.matchAll(/\b([A-Z]{2})\b/g))
+                .map(m => m[1])
+                .filter(s => s[0] !== s[1] && vertexMap.has(s[0]) && vertexMap.has(s[1]));
+
+            const chain: string[] = [];
+            for (const seg of segMatches) {
+                if (chain.length === 0) {
+                    chain.push(seg[0], seg[1]);
+                } else if (chain[chain.length - 1] === seg[0] && !chain.includes(seg[1])) {
+                    chain.push(seg[1]);
+                }
+            }
+
+            let anchorIdx = -1;
+            for (let i = 0; i <= chain.length - 3; i++) {
+                if (fixedVertices.has(chain[i]) && fixedVertices.has(chain[i + 1]) && fixedVertices.has(chain[i + 2])) {
+                    anchorIdx = i;
+                    break;
+                }
+            }
+
+            if (anchorIdx >= 0) {
+                const pPrev = vertexMap.get(chain[anchorIdx])!;
+                const pMid = vertexMap.get(chain[anchorIdx + 1])!;
+                const pNext = vertexMap.get(chain[anchorIdx + 2])!;
+
+                const sideLen = Math.hypot(pNext[0] - pMid[0], pNext[1] - pMid[1]);
+                const ang1 = Math.atan2(pMid[1] - pPrev[1], pMid[0] - pPrev[0]);
+                const ang2 = Math.atan2(pNext[1] - pMid[1], pNext[0] - pMid[0]);
+                let turnAngle = ang2 - ang1;
+                while (turnAngle <= -Math.PI) turnAngle += 2 * Math.PI;
+                while (turnAngle > Math.PI) turnAngle -= 2 * Math.PI;
+
+                for (let i = anchorIdx + 2; i < chain.length - 1; i++) {
+                    const pA = vertexMap.get(chain[i - 1])!;
+                    const pB = vertexMap.get(chain[i])!;
+                    const prevAng = Math.atan2(pB[1] - pA[1], pB[0] - pA[0]);
+                    const nextAng = prevAng + turnAngle;
+                    vertexMap.set(chain[i + 1], [
+                        +(pB[0] + sideLen * Math.cos(nextAng)).toFixed(3),
+                        +(pB[1] + sideLen * Math.sin(nextAng)).toFixed(3)
+                    ]);
+                }
+
+                for (let i = anchorIdx; i > 0; i--) {
+                    const pC = vertexMap.get(chain[i + 1])!;
+                    const pB = vertexMap.get(chain[i])!;
+                    const nextEdgeAng = Math.atan2(pC[1] - pB[1], pC[0] - pB[0]);
+                    const prevEdgeAng = nextEdgeAng - turnAngle;
+                    vertexMap.set(chain[i - 1], [
+                        +(pB[0] - sideLen * Math.cos(prevEdgeAng)).toFixed(3),
+                        +(pB[1] - sideLen * Math.sin(prevEdgeAng)).toFixed(3)
+                    ]);
+                }
+
+                if (Array.isArray(data.layers)) {
+                    const chainLayer = data.layers.find((l: any) => {
+                        const refs = l.vertex_refs || l.refs;
+                        if (Array.isArray(refs) && refs.length === chain.length) return true;
+                        const pts = l.points || l.vertices;
+                        return Boolean(l.is_open) && Array.isArray(pts) && pts.length === chain.length;
+                    });
+                    if (chainLayer) {
+                        chainLayer.vertex_refs = [...chain];
+                        chainLayer.points = chain.map(v => [...vertexMap.get(v)!]);
+                        chainLayer.stroke_width = chainLayer.stroke_width || 0.7;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Draws Coordinate Grids and Shape Layers
      */
     private static drawCoordinateGrid(data: any): string {
+        this.resolveVertexMap(data);
+
         if (data._isSymmetry) {
             const getPointsTemp = (item: any): any[] => {
                 let pts: any[] = [];
-                if (item.points) pts.push(...item.points);
-                if (item.vertices) pts.push(...item.vertices);
+                if (Array.isArray(item.points)) pts.push(...item.points);
+                if (Array.isArray(item.vertices)) pts.push(...item.vertices);
                 if (item.shapes) item.shapes.forEach((s: any) => pts.push(...getPointsTemp(s)));
                 if (item.layers) item.layers.forEach((l: any) => pts.push(...getPointsTemp(l)));
                 return pts;
@@ -917,8 +1259,8 @@ export class DiagramService {
                     pts.push([cx - r, cy - r], [cx + r, cy + r]);
                 }
             }
-            if (item.points) pts.push(...item.points);
-            if (item.vertices) pts.push(...item.vertices);
+            if (Array.isArray(item.points)) pts.push(...item.points);
+            if (Array.isArray(item.vertices)) pts.push(...item.vertices);
             if (item.coords) pts.push(item.coords);
             else if (item.coord) pts.push(item.coord);
             else if ((item.shape_name === 'point' || item.type === 'point') && item.center) pts.push(item.center);
@@ -943,7 +1285,18 @@ export class DiagramService {
             });
         }
 
-        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
+        const isPureGeometry = data.show_axes === false && (data.hide_grid === true || data.hide_grid === undefined);
+
+        if (isPureGeometry && allPossiblePoints.length > 0 && Number.isFinite(minX) && Number.isFinite(maxX)) {
+            // Always fit pure Euclidean geometry tightly to its actual vertices, ignoring arbitrary [-6, 6] LLM defaults
+            const spanX = Math.max(1, maxX - minX);
+            const spanY = Math.max(1, maxY - minY);
+            const margin = Math.max(spanX, spanY) * 0.14;
+            xMin = minX - margin;
+            xMax = maxX + margin;
+            yMin = minY - margin;
+            yMax = maxY + margin;
+        } else if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(yMin) || !Number.isFinite(yMax)) {
             if (allPossiblePoints.length > 0) {
                 xMin = Number.isFinite(xMin) ? xMin : minX - 2;
                 xMax = Number.isFinite(xMax) ? xMax : maxX + 2;
@@ -972,7 +1325,7 @@ export class DiagramService {
             }
         }
 
-        if (allPossiblePoints.length > 0) {
+        if (!isPureGeometry && allPossiblePoints.length > 0) {
             if (minX < xMin) xMin = minX - 1;
             if (maxX > xMax) xMax = maxX + 1;
             if (minY < yMin) yMin = minY - 1;
@@ -1236,12 +1589,12 @@ export class DiagramService {
 
         layers.forEach((layer: any) => {
             const rawPoints = layer.points || layer.vertices || (layer.coords ? [layer.coords] : (layer.coord ? [layer.coord] : ((layer.shape_name === 'point' || layer.type === 'point') && layer.center ? [layer.center] : [])));
-            const purpose = layer.purpose || data.purpose || "solution";
+            const purpose = layer.purpose || (isPureGeometry ? "reference" : (data.purpose || "solution"));
             const isReference = purpose === 'reference';
             const isVector = layer.shape_name === 'vector' || layer.type === 'vector';
             const strokeColor = (useSolutionHighlight && !isReference) ? '#10b981' : 'var(--diagram-foreground)';
             const strokeOpacityAttr = '';
-            const fillColor = isReference ? 'none' : (useSolutionHighlight ? 'rgba(16, 185, 129, 0.14)' : 'rgba(128, 128, 128, 0.15)');
+            const fillColor = (isReference && !layer.shaded) ? 'none' : (useSolutionHighlight ? 'rgba(16, 185, 129, 0.14)' : 'rgba(128, 128, 128, 0.15)');
 
             if (layer.shape_name === 'circle' || layer.type === 'circle') {
                 const cx = parseFloat(layer.center ? layer.center[0] : 0);
@@ -1303,7 +1656,6 @@ export class DiagramService {
                     (labelStr.length > 2 && !labelStr.startsWith('('));
 
                 const isVertexLetter = /^[A-Z]'?$/.test(labelStr);
-                const isPureGeometry = Boolean(data.hide_grid && data.show_axes === false);
 
                 if (isSinglePoint) {
                     if (!isTextOnlyLabel && !layer.hide_dot && !(isPureGeometry && isVertexLetter)) {
@@ -1314,7 +1666,7 @@ export class DiagramService {
                     const pts = parsedPts.map(([px, py]) => `${px},${-py}`).join(' ');
                     const tag = isOpen ? 'polyline' : 'polygon';
                     const dashedStyle = layer.dashed ? 'stroke-dasharray="3,3"' : '';
-                    const baseWidth = isVector ? 0.5 : (isReference ? 0.45 : 0.35);
+                    const baseWidth = layer.stroke_width || (isVector ? 0.5 : (isReference ? 0.45 : 0.35));
                     const markerAttr = isVector ? 'marker-end="url(#vector-arrow)"' : '';
 
                     layersHtml += `<${tag} points="${pts}" fill="${isOpen ? 'none' : fillColor}" stroke="${strokeColor}" ${strokeOpacityAttr} stroke-width="${baseWidth}" ${dashedStyle} ${markerAttr} vector-effect="non-scaling-stroke" />`;
@@ -1362,8 +1714,52 @@ export class DiagramService {
                         if (Array.isArray(layer.label_offset) && layer.label_offset.length === 2) {
                             lx += Number(layer.label_offset[0]) || 0;
                             ly += Number(layer.label_offset[1]) || 0;
+                        } else if (isPureGeometry && isVertexLetter) {
+                            // Generic Outward-Normal Vertex Offset:
+                            // Find all incident segments meeting at (lx, ly) and push the label in the opposite direction
+                            let sumDx = 0, sumDy = 0, incidentCount = 0;
+                            layers.forEach((other: any) => {
+                                const oPts = other.points || other.vertices;
+                                if (!Array.isArray(oPts) || oPts.length < 2) return;
+                                const parsed: [number, number][] = oPts.map((p: any) => [
+                                    parseFloat(Array.isArray(p) ? p[0] : p?.x),
+                                    parseFloat(Array.isArray(p) ? p[1] : p?.y)
+                                ]);
+                                const isClosed = !other.is_open && (other.shape_name === 'polygon' || other.type === 'polygon');
+                                for (let i = 0; i < parsed.length; i++) {
+                                    if (Math.hypot(parsed[i][0] - lx, parsed[i][1] - ly) < 0.15) {
+                                        const neighbors: [number, number][] = [];
+                                        if (i > 0) neighbors.push(parsed[i - 1]);
+                                        else if (isClosed) neighbors.push(parsed[parsed.length - 1]);
+                                        if (i < parsed.length - 1) neighbors.push(parsed[i + 1]);
+                                        else if (isClosed) neighbors.push(parsed[0]);
+
+                                        neighbors.forEach(([nx, ny]) => {
+                                            const dist = Math.hypot(nx - lx, ny - ly);
+                                            if (dist > 1e-3) {
+                                                sumDx += (nx - lx) / dist;
+                                                sumDy += (ny - ly) / dist;
+                                                incidentCount++;
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+
+                            const offsetDist = 0.65 * u;
+                            if (incidentCount > 0 && Math.hypot(sumDx, sumDy) > 1e-2) {
+                                const norm = Math.hypot(sumDx, sumDy);
+                                lx -= (sumDx / norm) * offsetDist;
+                                ly -= (sumDy / norm) * offsetDist;
+                            } else {
+                                // Fallback: push away from figure centroid
+                                const cx = (minX + maxX) / 2;
+                                const cy = (minY + maxY) / 2;
+                                const dCent = Math.hypot(lx - cx, ly - cy) || 1;
+                                lx += ((lx - cx) / dCent) * offsetDist;
+                                ly += ((ly - cy) / dCent) * offsetDist;
+                            }
                         } else if (!isTextOnlyLabel) {
-                            // Point: offset beside the dot so it never overlaps the marker or clips at edges
                             if (lx - xMin < width * 0.3) {
                                 lx += pointRadius * 1.8;
                                 textAnchor = "start";
@@ -2963,60 +3359,5 @@ export class DiagramService {
             return this.drawSolid3D({ shape: 'sphere' });
         }
         return this.renderFallbackBox(desc);
-    }
-
-    /**
-     * Renders Question 24: Regular polygon sides AB, BC, CD, DE with equilateral triangle BCX and square CDYX.
-     */
-    private static renderRegularPolygonConstruction(): string {
-        return this.drawCoordinateGrid({
-            type: 'coordinate_grid',
-            purpose: 'reference',
-            show_axes: false,
-            hide_grid: true,
-            x_min: -5.2,
-            x_max: 6.5,
-            y_min: -1.2,
-            y_max: 4.8,
-            layers: [
-                { shape_name: 'polygon', purpose: 'reference', points: [[0, 0], [3, 0], [3, 3], [0, 3]] },
-                { shape_name: 'polygon', purpose: 'reference', points: [[0, 0], [0, 3], [-2.6, 1.5]] },
-                { shape_name: 'polyline', purpose: 'reference', is_open: true, points: [[-4.1, 4.1], [-2.6, 1.5], [0, 0], [3, 0], [5.6, 1.5]] },
-                { shape_name: 'point', coords: [-4.1, 4.1], label: 'A', hide_dot: true, label_offset: [-0.35, 0.25], purpose: 'reference' },
-                { shape_name: 'point', coords: [-2.6, 1.5], label: 'B', hide_dot: true, label_offset: [-0.45, -0.15], purpose: 'reference' },
-                { shape_name: 'point', coords: [0, 0], label: 'C', hide_dot: true, label_offset: [0, -0.5], purpose: 'reference' },
-                { shape_name: 'point', coords: [3, 0], label: 'D', hide_dot: true, label_offset: [0, -0.5], purpose: 'reference' },
-                { shape_name: 'point', coords: [5.6, 1.5], label: 'E', hide_dot: true, label_offset: [0.45, 0.1], purpose: 'reference' },
-                { shape_name: 'point', coords: [0, 3], label: 'X', hide_dot: true, label_offset: [0, 0.5], purpose: 'reference' },
-                { shape_name: 'point', coords: [3, 3], label: 'Y', hide_dot: true, label_offset: [0.35, 0.35], purpose: 'reference' }
-            ]
-        });
-    }
-
-    /**
-     * Renders Question 16: Intersecting lines AED and BCD meeting at D with isosceles triangle EDC (40°) and triangle ABD (70°).
-     */
-    private static renderParallelTrianglesConstruction(): string {
-        return this.drawCoordinateGrid({
-            type: 'coordinate_grid',
-            purpose: 'reference',
-            show_axes: false,
-            hide_grid: true,
-            x_min: -4.5,
-            x_max: 4.5,
-            y_min: -0.8,
-            y_max: 6.5,
-            layers: [
-                { shape_name: 'polygon', purpose: 'reference', points: [[-3.2, 0], [3.2, 0], [0, 5.4]] },
-                { shape_name: 'line', purpose: 'reference', points: [[-1.6, 2.7], [1.6, 2.7]] },
-                { shape_name: 'point', coords: [-3.2, 0], label: 'A', hide_dot: true, label_offset: [-0.4, -0.25], purpose: 'reference' },
-                { shape_name: 'point', coords: [3.2, 0], label: 'B', hide_dot: true, label_offset: [0.4, -0.25], purpose: 'reference' },
-                { shape_name: 'point', coords: [1.6, 2.7], label: 'C', hide_dot: true, label_offset: [0.45, 0.1], purpose: 'reference' },
-                { shape_name: 'point', coords: [0, 5.4], label: 'D', hide_dot: true, label_offset: [0, 0.45], purpose: 'reference' },
-                { shape_name: 'point', coords: [-1.6, 2.7], label: 'E', hide_dot: true, label_offset: [-0.45, 0.1], purpose: 'reference' },
-                { shape_name: 'point', coords: [-0.85, 3.05], label: '40°', purpose: 'reference' },
-                { shape_name: 'point', coords: [2.25, 0.55], label: '70°', purpose: 'reference' }
-            ]
-        });
     }
 }
