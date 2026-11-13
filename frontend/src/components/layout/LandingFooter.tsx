@@ -33,6 +33,7 @@ export const LandingFooter: React.FC = () => {
                     <div className="footer-column">
                         <span className="footer-label">Compare</span>
                         <Link to="/compare/vs-chatgpt" className="footer-link">VS ChatGPT</Link>
+                        <Link to="/compare/vs-save-my-exams" className="footer-link">VS Save My Exams</Link>
                     </div>
 
                     <div className="footer-column">

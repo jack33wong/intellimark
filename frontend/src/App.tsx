@@ -30,6 +30,7 @@ import TermsPage from './pages/TermsPage';
 import FeaturesPage from './pages/FeaturesPage';
 import AboutPage from './pages/AboutPage';
 import CompareChatGPTPage from './pages/CompareChatGPTPage';
+import CompareSaveMyExamsPage from './pages/CompareSaveMyExamsPage';
 import AqaLandingPage from './pages/AqaLandingPage';
 import EdexcelLandingPage from './pages/EdexcelLandingPage';
 import OcrLandingPage from './pages/OcrLandingPage';
@@ -317,6 +318,7 @@ function AppContent() {
         <Route path="/features" element={<FeaturesPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/compare/vs-chatgpt" element={<CompareChatGPTPage />} />
+        <Route path="/compare/vs-save-my-exams" element={<CompareSaveMyExamsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <GuestLimitModal
