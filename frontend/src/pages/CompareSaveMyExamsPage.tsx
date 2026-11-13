@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import LandingPageHeader from '../components/layout/LandingPageHeader';
 import LandingFooter from '../components/layout/LandingFooter';
-import { Check, ArrowRight, BookOpen } from 'lucide-react';
+import { Check, ArrowRight, BookOpen, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/common/SEO';
 import './CompareChatGPTPage.css';
@@ -36,7 +36,15 @@ const CompareSaveMyExamsPage: React.FC = () => {
                 "name": "Does AI Marking use official exam-board mark schemes?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes. Unlike generic AI chatbots, AI Marking is strictly locked to official AQA, Edexcel, and OCR mark schemes, Examiner Notes, and Chief Examiner Reports—and you can also attach any official mark scheme PDF for free."
+                    "text": "Yes. Unlike generic AI chatbots, AI Marking is strictly locked to official AQA, Pearson Edexcel, and OCR mark schemes, official examiner guidance notes, and Chief Examiner Reports—and you can also attach any official mark scheme PDF for free."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How do I mark a past paper downloaded from Save My Exams?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Download and complete your past paper on paper or an iPad as usual, then upload your completed PDF or smartphone photos to AI Marking. For Maths and English Language, official mark schemes are built in; for Sciences and Humanities, simply attach the mark scheme PDF alongside your paper for free."
                 }
             }
         ]
@@ -57,7 +65,7 @@ const CompareSaveMyExamsPage: React.FC = () => {
                     <p>
                         Save My Exams is brilliant for learning the syllabus and downloading past papers. AI Marking is built to grade your actual handwritten working out, graphs, and full 40-page exam booklets.
                     </p>
-                    <div className="compare-hero-visual-wrapper" style={{ marginTop: '48px', display: 'flex', justifyContent: 'center' }}>
+                    <div className="compare-hero-visual-wrapper" style={{ marginTop: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '28px' }}>
                         <div
                             style={{
                                 display: 'flex',
@@ -121,6 +129,10 @@ const CompareSaveMyExamsPage: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+
+                        <Link to="/app" className="feature-pill-btn">
+                            Grade a past paper for free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+                        </Link>
                     </div>
                 </section>
 
@@ -132,12 +144,44 @@ const CompareSaveMyExamsPage: React.FC = () => {
                                 Online revision platforms only check typed short answers on their own proprietary quizzes—and once you download a 40-page past paper PDF, grading it yourself against a raw mark scheme takes 45 minutes. Real GCSE Maths and Science exams require multi-step equations, chemical formulas, and plotted graphs on paper. AI Marking reads your actual smartphone photos or scanned 40-page PDF booklets and places M1, A1, and B1 ticks directly on your handwriting.
                             </p>
                         </div>
-                        <div className="compare-feature-visual">
+                        <div
+                            className="compare-feature-visual"
+                            style={{ position: 'relative', overflow: 'hidden', borderRadius: '20px', backgroundColor: '#fcfcfc' }}
+                        >
                             <img
                                 src="/images/compare/science_graph_b1_marking.jpg"
                                 alt="AI Marking grading a scanned GCSE Chemistry bar chart with B1 ticks directly on handwritten labels"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fcfcfc', padding: '12px' }}
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    objectPosition: 'center 52%',
+                                    transform: 'scale(1.06)',
+                                    backgroundColor: '#fcfcfc',
+                                    padding: '8px'
+                                }}
                             />
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '16px',
+                                    right: '16px',
+                                    background: 'rgba(255, 255, 255, 0.96)',
+                                    border: '1px solid #d1fae5',
+                                    borderRadius: '12px',
+                                    padding: '8px 12px',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    color: '#065f46'
+                                }}
+                            >
+                                <CheckCircle2 size={16} color="#10b981" />
+                                <span>B1 × 3 — Plotted bars, y-axis scale &amp; labels verified</span>
+                            </div>
                         </div>
                     </div>
 
@@ -145,15 +189,94 @@ const CompareSaveMyExamsPage: React.FC = () => {
                         <div className="compare-feature-text">
                             <h2 className="features-h2">Official Exam-Board Mark Schemes, Not Generic AI</h2>
                             <p>
-                                Unlike generic chatbots that guess answers or miss method marks, AI Marking is strictly locked to official AQA, Edexcel, and OCR mark schemes, [Examiner Notes], and Chief Examiner Reports. Plus, you can attach any official mark scheme PDF for free—so even if your final answer is off, your working out still earns every M1 follow-through mark it deserves.
+                                Unlike generic chatbots that guess answers or miss method marks, AI Marking is strictly locked to official AQA, Pearson Edexcel, and OCR mark schemes, official examiner guidance notes, and Chief Examiner Reports. Plus, you can attach any official mark scheme PDF for free—so even if your final answer is off, your working out still earns every M1 follow-through mark it deserves.
                             </p>
                         </div>
-                        <div className="compare-feature-visual">
-                            <img
-                                src="/images/compare/validated_marking_table.png"
-                                alt="Validated official exam-board marking performance table"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fcfcfc', padding: '12px' }}
-                            />
+                        <div
+                            className="compare-feature-visual"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '24px',
+                                backgroundColor: '#f8fafc',
+                                borderRadius: '20px'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: '100%',
+                                    background: '#ffffff',
+                                    borderRadius: '16px',
+                                    border: '1px solid #e2e8f0',
+                                    boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)',
+                                    padding: '20px'
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
+                                            Examiner Benchmark Results
+                                        </div>
+                                        <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                                            Academic Year 2025–2026 · Official Past Papers
+                                        </div>
+                                    </div>
+                                    <span
+                                        style={{
+                                            fontSize: '0.72rem',
+                                            fontWeight: 600,
+                                            color: '#059669',
+                                            background: '#ecfdf5',
+                                            border: '1px solid #a7f3d0',
+                                            padding: '4px 10px',
+                                            borderRadius: '999px'
+                                        }}
+                                    >
+                                        Deterministic Engine
+                                    </span>
+                                </div>
+
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                                    <thead>
+                                    <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
+                                        <th style={{ padding: '8px 6px' }}>Exam Board</th>
+                                        <th style={{ padding: '8px 6px' }}>Subject</th>
+                                        <th style={{ padding: '8px 6px' }}>Alignment</th>
+                                        <th style={{ padding: '8px 6px' }}>Status</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {[
+                                        { board: 'Pearson Edexcel', subject: 'GCSE Mathematics (1MA1)', acc: '99.4%', status: 'Validated' },
+                                        { board: 'AQA', subject: 'GCSE Biology (8461/1H)', acc: '99.1%', status: 'Validated' },
+                                        { board: 'AQA', subject: 'Combined Science (8464)', acc: '99.0%', status: 'Validated' },
+                                        { board: 'AQA / Edexcel', subject: 'GCSE English Language', acc: '98.8%', status: 'Validated' }
+                                    ].map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: idx < 3 ? '1px solid #f1f5f9' : 'none', color: '#1e293b' }}>
+                                            <td style={{ padding: '10px 6px', fontWeight: 600 }}>{row.board}</td>
+                                            <td style={{ padding: '10px 6px' }}>{row.subject}</td>
+                                            <td style={{ padding: '10px 6px', fontWeight: 700, color: '#0f172a' }}>{row.acc}</td>
+                                            <td style={{ padding: '10px 6px' }}>
+                                                    <span
+                                                        style={{
+                                                            display: 'inline-block',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 600,
+                                                            color: '#047857',
+                                                            background: '#d1fae5',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '6px'
+                                                        }}
+                                                    >
+                                                        {row.status}
+                                                    </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -163,38 +286,38 @@ const CompareSaveMyExamsPage: React.FC = () => {
                     <div className="compare-table-card">
                         <table className="compare-table">
                             <thead>
-                                <tr>
-                                    <th>Feature</th>
-                                    <th>Save My Exams</th>
-                                    <th>AI Marking (aimarking.ai)</th>
-                                </tr>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Save My Exams</th>
+                                <th>AI Marking (aimarking.ai)</th>
+                            </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>Primary Strength</td>
-                                    <td className="cross-col">Revision notes &amp; topic questions</td>
-                                    <td className="check-col">Full handwritten past paper marking</td>
-                                </tr>
-                                <tr>
-                                    <td>Full 40-Page Past Paper PDFs</td>
-                                    <td className="cross-col">Download only (you mark it yourself)</td>
-                                    <td className="check-col">Automated grading in ~60 seconds</td>
-                                </tr>
-                                <tr>
-                                    <td>Handwritten Maths &amp; Working Out</td>
-                                    <td className="cross-col">Not supported (typed text boxes only)</td>
-                                    <td className="check-col">Reads messy handwriting, crossed-out work &amp; diagrams</td>
-                                </tr>
-                                <tr>
-                                    <td>Method &amp; Follow-Through Marks</td>
-                                    <td className="cross-col">Basic keyword matching on quiz questions</td>
-                                    <td className="check-col">Full M1/A1/B1 step-by-step &amp; error-carried-forward logic</td>
-                                </tr>
-                                <tr>
-                                    <td>On-Page Visual Red-Pen Annotations</td>
-                                    <td className="cross-col">None</td>
-                                    <td className="check-col">Exact line-by-line ticks, crosses &amp; mark codes on your page</td>
-                                </tr>
+                            <tr>
+                                <td>Primary Strength</td>
+                                <td className="cross-col">Revision notes &amp; topic questions</td>
+                                <td className="check-col">Full handwritten past paper marking</td>
+                            </tr>
+                            <tr>
+                                <td>Full 40-Page Past Paper PDFs</td>
+                                <td className="cross-col">Download only (you mark it yourself)</td>
+                                <td className="check-col">Automated grading in ~60 seconds</td>
+                            </tr>
+                            <tr>
+                                <td>Handwritten Maths &amp; Working Out</td>
+                                <td className="cross-col">Not supported (typed text boxes only)</td>
+                                <td className="check-col">Reads messy handwriting, crossed-out work &amp; diagrams</td>
+                            </tr>
+                            <tr>
+                                <td>Method &amp; Follow-Through Marks</td>
+                                <td className="cross-col">Basic keyword matching on quiz questions</td>
+                                <td className="check-col">Full M1/A1/B1 step-by-step &amp; error-carried-forward logic</td>
+                            </tr>
+                            <tr>
+                                <td>On-Page Visual Red-Pen Annotations</td>
+                                <td className="cross-col">None</td>
+                                <td className="check-col">Exact line-by-line ticks, crosses &amp; mark codes on your page</td>
+                            </tr>
                             </tbody>
                         </table>
                     </div>

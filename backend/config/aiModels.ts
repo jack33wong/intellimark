@@ -165,7 +165,7 @@ export const MODEL_TIER_DEFINITIONS: Record<LogicalTierId, TierDefinition> = {
     maxOutputTokens: 8192,
     exposeInUi: true,
     uiLabel: 'Thinking',
-    uiDescription: 'Deep step-by-step & rubric reasoning (~1.5–2x credits)'
+    uiDescription: 'Deep step-by-step & mark scheme reasoning (~1.5–2x credits)'
   },
   pro: {
     id: 'pro',
