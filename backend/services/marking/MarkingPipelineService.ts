@@ -1671,10 +1671,12 @@ export class MarkingPipelineService {
                 // Mark this question as residing on a separate handwritten answer sheet (no physical printed stem on page)
                 qObj.isSeparateAnswerSheet = true;
 
-                // 1. Hydrate main question stem if missing or contaminated/short on notebook page
+                // 1. Hydrate main question stem if missing or contaminated/short (e.g. "You are advised to plan..." header on an answer page)
                 const currentText = (qObj.text && qObj.text !== 'null') ? String(qObj.text).trim() : '';
-                if ((!currentText || currentText.length < 10) && donated.text) {
-                    qObj.text = donated.text;
+                if (donated.text && (!currentText || currentText.length < 10 || donated.text.length > currentText.length * 1.5)) {
+                    qObj.text = currentText && !donated.text.toLowerCase().includes(currentText.toLowerCase().slice(0, 25))
+                        ? `${donated.text}\n${currentText}`
+                        : donated.text;
                 }
 
                 // 2. Hydrate existing sub-questions and inject any sub-question texts from the donor PDF
@@ -2009,7 +2011,8 @@ export class MarkingPipelineService {
                 r.result?.category === 'metadata'
             );
             const isQuestionMode = hasQuestionOnlyPages && originalClassificationResults.length > 0 && !hasStudentWorkPages;
-            const isMixedContent = hasStudentWorkPages && questionOnlyPages.length > 0;
+            // Simplified binary mode: either pure Question Mode (no student work) or pure Marking Mode (no mixed mode)
+            const isMixedContent = false;
 
             console.log(`🔍 [MODE DETECTION] Analysis (AFTER overrides):`);
             console.log(`  - All question-only: ${isQuestionMode}`);
@@ -3799,23 +3802,26 @@ export class MarkingPipelineService {
                 try {
                     const { overallScore: preOverall, totalPossibleScore: preTotal, overallScoreText: preScoreText } =
                         calculateOverallScore(allQuestionResults);
+                    const isModifiedPaper = detectionResults?.some((r: any) => r.detectionResult?.isModifiedQuestion === true) || false;
                     let detectedQuestionForGrade: any = undefined;
-                    if (markingSchemesMap && markingSchemesMap.size > 0) {
+                    if (!isModifiedPaper && markingSchemesMap && markingSchemesMap.size > 0) {
                         const allSchemes = Array.from(markingSchemesMap.values());
                         const firstSchemeEntry =
                             allSchemes.find((s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) ||
                             allSchemes[0];
                         detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
                     }
-                    const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
-                        preOverall,
-                        preTotal,
-                        detectedQuestionForGrade,
-                        markingSchemesMap
-                    );
+                    const gradeResult = isModifiedPaper
+                        ? { grade: undefined, predictedGrade: undefined, boundaries: undefined }
+                        : await GradeBoundaryService.calculateGradeWithOrchestration(
+                            preOverall,
+                            preTotal,
+                            detectedQuestionForGrade,
+                            markingSchemesMap
+                        );
                     const firstDetection = detectionResults?.[0]?.detectionResult?.match || {};
                     const isAnyQuestionFound = detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
-                    const isRealPastPaper = Boolean(firstDetection.board && firstDetection.board !== 'Unknown' && isAnyQuestionFound);
+                    const isRealPastPaper = !isModifiedPaper && Boolean(firstDetection.board && firstDetection.board !== 'Unknown' && isAnyQuestionFound);
                     const examInfo = isRealPastPaper ? {
                         examBoard: firstDetection.board || '',
                         examSeries: firstDetection.examSeries || firstDetection.year || '',

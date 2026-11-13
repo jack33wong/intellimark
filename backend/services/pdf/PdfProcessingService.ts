@@ -6,7 +6,7 @@
 
 import { fromPath } from "pdf2pic";
 import sharp from 'sharp';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFPage } from 'pdf-lib';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
@@ -38,6 +38,18 @@ const MAX_PIXEL_DIMENSION = 10000; // Well below GraphicsMagick's 65500px JPEG l
 
 export class PdfProcessingService {
   /**
+   * Returns visual page dimensions in PDF points after applying /Rotate (90/270 swaps width & height).
+   */
+  private static getVisualPageSize(page: PDFPage): { width: number; height: number } {
+    const { width, height } = page.getSize();
+    const angle = ((page.getRotation().angle % 360) + 360) % 360;
+    if (angle === 90 || angle === 270) {
+      return { width: height, height: width };
+    }
+    return { width, height };
+  }
+
+  /**
    * Rejects ultra-tall continuous-scroll PDF pages (e.g. Apple Notes / GoodNotes infinite-canvas exports)
    * where fixed-height slicing cuts questions across boundaries and embedded handwriting is often too faint.
    */
@@ -46,7 +58,7 @@ export class PdfProcessingService {
     if (pages.length === 0 || pages.length > 3) return;
 
     const hasContinuousPage = pages.some((p) => {
-      const { width, height } = p.getSize();
+      const { width, height } = this.getVisualPageSize(p);
       return width > 0 && height / width > 2.5;
     });
 
@@ -126,7 +138,7 @@ export class PdfProcessingService {
 
       if (pageCount > 0) {
         const firstPage = srcPdfDoc.getPages()[0];
-        const size = firstPage.getSize();
+        const size = this.getVisualPageSize(firstPage);
         if (size.width > 0 && size.height > 0) {
           pdfPtW = size.width;
           pdfPtH = size.height;
@@ -201,6 +213,7 @@ export class PdfProcessingService {
               saveFilename: `page_${chunkStart}_${uuidv4()}`,
               width: targetWidth,
               height: targetHeight,
+              preserveAspectRatio: true,
               compression: "jpeg",
               "-background": "white",
               "-alpha": "remove",
@@ -290,6 +303,7 @@ export class PdfProcessingService {
             saveFilename: `fb_page_${uuidv4()}`,
             width: targetWidth,
             height: targetHeight,
+            preserveAspectRatio: true,
             compression: "jpeg",
             "-background": "white",
             "-alpha": "remove",

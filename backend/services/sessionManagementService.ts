@@ -311,6 +311,20 @@ export class SessionManagementService {
           }
         }
 
+        // Check if any question was detected as teacher-modified vs. official past paper
+        const hasModifiedQuestion = Array.from(context.markingSchemesMap.values()).some(
+          scheme => scheme.questionDetection?.isModifiedQuestion === true
+        );
+        if (hasModifiedQuestion) {
+          const subjectFallback = firstQuestionScheme.questionDetection?.match?.subject ||
+            firstQuestionScheme.subjectProfile?.displayName ||
+            '';
+          const subjectShort = subjectFallback ? getShortSubjectName(subjectFallback) : '';
+          return subjectShort
+            ? `${subjectShort} (Modified) - ${questionNumberDisplay} ${totalMarks} marks`.replace(/\s+/g, ' ').trim()
+            : `Modified Paper - ${questionNumberDisplay} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
+        }
+
         // Check if we have multiple exam papers
         const examBoards = new Set();
         const examCodes = new Set();
@@ -973,24 +987,26 @@ export class SessionManagementService {
       });
 
       // Extract metadata from first detection result if available
-      const firstDetection = aiData.detectionResults?.[0]?.detectionResult?.match || {};
+      const isModifiedPaper = aiData.detectionResults?.some((r: any) => r.detectionResult?.isModifiedQuestion === true) || false;
+      const firstDetection = (!isModifiedPaper && aiData.detectionResults?.[0]?.detectionResult?.match) || {};
       const firstQuestionMetadata = aiData.detectionResults?.[0]?.question || {};
       
-      const isAnyQuestionFound = aiData.detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
+      const isAnyQuestionFound = !isModifiedPaper && (aiData.detectionResults?.some((r: any) => r.detectionResult?.found === true) || false);
 
       detectedQuestion = {
         found: isAnyQuestionFound,
+        isModifiedPaper,
         multipleExamPapers: false,
         multipleQuestions: questions.length > 1,
         totalMarks: syncTotal,
         examPapers: [{
-          examBoard: firstDetection.board || '',
-          examCode: firstDetection.paperCode || '',
-          examSeries: firstDetection.examSeries || firstDetection.year || '',
-          tier: firstDetection.tier || '',
+          examBoard: isModifiedPaper ? '' : (firstDetection.board || ''),
+          examCode: isModifiedPaper ? '' : (firstDetection.paperCode || ''),
+          examSeries: isModifiedPaper ? '' : (firstDetection.examSeries || firstDetection.year || ''),
+          tier: isModifiedPaper ? '' : (firstDetection.tier || ''),
           subject: firstDetection.subject || firstDetection.qualification || '',
           qualification: firstDetection.qualification || firstDetection.level || '',
-          paperTitle: firstDetection.paperTitle || firstQuestionMetadata.paperTitle || "Annotated Paper",
+          paperTitle: isModifiedPaper ? 'Modified / Custom Paper' : (firstDetection.paperTitle || firstQuestionMetadata.paperTitle || "Annotated Paper"),
           totalMarks: syncTotal,
           questions: questions
         }]

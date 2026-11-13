@@ -372,7 +372,8 @@ export class MarkingSchemeOrchestrationService {
           groupDetectionResult = await questionDetectionService.detectQuestion(
             combinedAnchor,
             baseNum,
-            examPaperHint
+            examPaperHint,
+            { allowCroppedQ1Exemption: individualQuestions.length <= 1 }
           );
         }
       }
@@ -609,7 +610,12 @@ export class MarkingSchemeOrchestrationService {
             console.log(`      Forced hint: "${forcedHint}"`);
           }
 
-          const rescuedResult = await questionDetectionService.detectQuestion(rescueAnchorText, baseNum || dr.question.questionNumber, forcedHint);
+          const rescuedResult = await questionDetectionService.detectQuestion(
+            rescueAnchorText,
+            baseNum || dr.question.questionNumber,
+            forcedHint,
+            { allowCroppedQ1Exemption: false }
+          );
 
           if (process.env.LOG_QUESTION_DETECTION === 'true') {
             console.log(`      Rescue result: ${rescuedResult.found ? '✅ SUCCESS' : '❌ STILL FAILED'}`);
@@ -633,6 +639,14 @@ export class MarkingSchemeOrchestrationService {
             if (process.env.LOG_QUESTION_DETECTION === 'true') {
               console.log(`      ✅ Applied rescue to all Q${baseNum} variants`);
             }
+          } else if (rescuedResult.isModifiedQuestion) {
+            processedGroups.add(baseNum);
+            detectionResults.filter(d => getBaseQuestionNumber(d.question.questionNumber) === baseNum)
+              .forEach(d => {
+                if (d.detectionResult) {
+                  d.detectionResult.isModifiedQuestion = true;
+                }
+              });
           }
         }
       }

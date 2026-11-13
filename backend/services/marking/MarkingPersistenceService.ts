@@ -182,9 +182,10 @@ export class MarkingPersistenceService {
             }
 
             // Create AI message for database
-            // Calculate grade based on grade boundaries (if exam data is available)
+            // Calculate grade based on grade boundaries (if exam data is available and paper is not modified)
+            const isModifiedPaper = detectionResults?.some((r: any) => r.detectionResult?.isModifiedQuestion === true) || false;
             let detectedQuestionForGrade: any = undefined;
-            if (markingSchemesMap && markingSchemesMap.size > 0) {
+            if (!isModifiedPaper && markingSchemesMap && markingSchemesMap.size > 0) {
                 const allSchemes = Array.from(markingSchemesMap.values());
                 const firstSchemeEntry =
                     allSchemes.find((s: any) => !s?.isGeneric && s?.questionDetection?.found && s?.questionDetection?.match) ||
@@ -192,12 +193,14 @@ export class MarkingPersistenceService {
                 detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
             }
 
-            const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
-                overallScore,
-                totalPossibleScore,
-                detectedQuestionForGrade,
-                markingSchemesMap
-            );
+            const gradeResult = isModifiedPaper
+                ? { grade: undefined, predictedGrade: undefined, boundaryType: undefined, boundaries: undefined }
+                : await GradeBoundaryService.calculateGradeWithOrchestration(
+                    overallScore,
+                    totalPossibleScore,
+                    detectedQuestionForGrade,
+                    markingSchemesMap
+                );
             const calculatedGrade = gradeResult.grade;
             const predictedGrade = gradeResult.predictedGrade;
             const gradeBoundaryType = gradeResult.boundaryType;

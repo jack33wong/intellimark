@@ -60,6 +60,7 @@ export interface MarkingSchemeMatch {
 
 export interface QuestionDetectionResult {
   found: boolean;
+  isModifiedQuestion?: boolean;
   match?: ExamPaperMatch;
   message?: string;
   markingScheme?: string;
@@ -162,7 +163,8 @@ export class QuestionDetectionService {
   public async detectQuestion(
     extractedQuestionText: string,
     questionNumberHint?: string | null,
-    examPaperHint?: string | null
+    examPaperHint?: string | null,
+    detectionOptions?: { allowCroppedQ1Exemption?: boolean }
   ): Promise<QuestionDetectionResult> {
     try {
       console.log('🚨 [HINT CHECK] Received Hint:', examPaperHint);
@@ -190,6 +192,7 @@ export class QuestionDetectionService {
       const searchPool = isNarrowSearch ? primaryPapers : allExamPapers;
 
       const isRescueMode = isNarrowSearch && primaryPapers.length <= 2;
+      const allowCroppedQ1Exemption = detectionOptions?.allowCroppedQ1Exemption ?? true;
 
       // 3. Metadata Setup
       const currentPoolSize = searchPool.reduce((sum, paper) => {
@@ -219,7 +222,7 @@ export class QuestionDetectionService {
       let candidates: MatchCandidate[] = [];
 
       for (const paper of searchPool) {
-        const paperCandidates = this.findCandidatesInPaper(cleanText, paper, cleanQHint, isRescueMode);
+        const paperCandidates = this.findCandidatesInPaper(cleanText, paper, cleanQHint, isRescueMode, allowCroppedQ1Exemption);
         candidates = candidates.concat(paperCandidates);
       }
 
@@ -263,9 +266,13 @@ export class QuestionDetectionService {
           }
         }
 
-        const minimumTextScore = isRescueMode ? 0.15 : 0.25; 
+        const minimumTextScore = isRescueMode ? 0.15 : 0.25;
+        // Distinguish teacher-modified question vs. OCR/extraction failure:
+        // If extracted text is substantial (>= 100 chars) yet text similarity is still < 0.50,
+        // the question was rewritten/modified — do NOT force-attach an outdated official scheme.
+        const isLikelyModifiedQuestion = isRescueMode && cleanText.length >= 100 && winner.scoreDetails.text < 0.50;
 
-        if (shouldAccept && winner.scoreDetails.text >= minimumTextScore) {
+        if (shouldAccept && winner.scoreDetails.text >= minimumTextScore && !isLikelyModifiedQuestion) {
 
           if (winner.score < strictThreshold) hintMetadata.thresholdRelaxed = true;
           hintMetadata.isWeakMatch = winner.score < 0.7;
@@ -308,9 +315,19 @@ export class QuestionDetectionService {
 
       // 7. Failure State
       hintMetadata.isWeakMatch = true;
+      const topCandidate = candidates[0];
+      const isModified = Boolean(
+        isRescueMode &&
+        topCandidate &&
+        cleanText.length >= 100 &&
+        topCandidate.scoreDetails.text < 0.50
+      );
       return {
         found: false,
-        message: candidates.length > 0 ? 'Matches found but below confidence threshold' : 'No matching questions found',
+        ...(isModified ? { isModifiedQuestion: true } : {}),
+        message: isModified
+          ? 'Question appears modified vs. official paper — falling back to generic rubric'
+          : (candidates.length > 0 ? 'Matches found but below confidence threshold' : 'No matching questions found'),
         hintMetadata
       };
 
@@ -325,7 +342,8 @@ export class QuestionDetectionService {
     inputQueryText: string,
     paper: any,
     hintQNum: string | null,
-    isRescueMode: boolean
+    isRescueMode: boolean,
+    allowCroppedQ1Exemption: boolean = true
   ): MatchCandidate[] {
     const candidates: MatchCandidate[] = [];
     const questions = paper.questions || {};
@@ -351,7 +369,7 @@ export class QuestionDetectionService {
       }
 
       // 3. COMPARE BLOCKS
-      const scoreDetails = this.calculateHybridScore(inputQueryText, searchAggregateText, hintQNum, qNum, isRescueMode);
+      const scoreDetails = this.calculateHybridScore(inputQueryText, searchAggregateText, hintQNum, qNum, isRescueMode, allowCroppedQ1Exemption);
 
       // 4. THRESHOLD
       if (scoreDetails.total > 0.15) {
@@ -375,7 +393,8 @@ export class QuestionDetectionService {
     dbText: string,
     hint: string | null,
     dbQNum: string,
-    isRescueMode: boolean
+    isRescueMode: boolean,
+    allowCroppedQ1Exemption: boolean = true
   ): { total: number, text: number, numeric: number, structure: number, semanticCheck: boolean } {
 
     const details = SimilarityService.calculateQuestionHybridScore(inputText, dbText, isRescueMode);
@@ -383,9 +402,9 @@ export class QuestionDetectionService {
     // 1. Standard Structural Match
     let structureScore = 0.5; // Neutral default
     
-    // 🛡️ THE FIX: Define safeguard for hallucinated "1"s and track explicit conflicts
+    // 🛡️ THE FIX: Define safeguard for hallucinated "1"s (single-question crops only) and track explicit conflicts
     const hintBase = hint ? hint.match(/^\d+/)?.[0]?.replace(/^0+(?=\d)/, '') : null;
-    const isLikelyCroppedDefault = hintBase === "1";
+    const isLikelyCroppedDefault = hintBase === "1" && allowCroppedQ1Exemption && !isRescueMode;
     let explicitNumberConflict = false; 
 
     if (hint) {
@@ -829,13 +848,23 @@ export class QuestionDetectionService {
         const mainQ = questions[qNum] || questions[baseNum];
 
         // Find matching external Examiner Report document if available
+        const getSeriesSeason = (s: string): string | null => {
+          if (/\b(june|jun|may|summer)\b/i.test(s)) return 'summer';
+          if (/\b(november|nov|autumn|winter)\b/i.test(s)) return 'november';
+          if (/\b(january|jan|march|mar|spring)\b/i.test(s)) return 'january';
+          return null;
+        };
+        const season2 = getSeriesSeason(series2);
         const matchingExternalReport = examinerReports.find((rep: any) => {
           const repDetails = rep.examDetails || rep.metadata || {};
           const repCode = String(repDetails.paperCode || repDetails.exam_code || '').trim();
           if (repCode !== examDetails.paperCode) return false;
           const repSeries = String(repDetails.exam_series || repDetails.date || '').toLowerCase();
           const repYear = repSeries.match(/\d{4}/)?.[0];
-          return !year2 || !repYear || year2 === repYear;
+          if (year2 && repYear && year2 !== repYear) return false;
+          const repSeason = getSeriesSeason(repSeries);
+          if (season2 && repSeason && season2 !== repSeason) return false;
+          return true;
         });
         const externalQReport = matchingExternalReport?.questions?.[qNum] || matchingExternalReport?.questions?.[baseNum];
 
@@ -915,7 +944,8 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     const board = match.board || '';
     const code = match.paperCode || '';
     const series = match.examSeries || '';
-    const tier = match.tier || '';
+    const rawTier = String(match.tier || '').trim();
+    const tier = /^(n\/a|unknown|none)$/i.test(rawTier) ? '' : rawTier;
     const paperKey = `${board}_${code}_${series}_${tier}`;
 
     if (!examPaperGroups.has(paperKey)) {
@@ -1011,6 +1041,29 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     p.examCode !== 'N/A'
   );
 
+  // If any question was detected as teacher-modified, never label the session as an official past paper
+  const hasModifiedQuestion = detectionResults.some(
+    dr => dr?.detectionResult?.isModifiedQuestion === true
+  );
+  if (hasModifiedQuestion) {
+    const allQNums = Array.from(new Set(
+      detectionResults
+        .map((dr: any) => parseInt(String(dr?.question?.questionNumber || dr?.detectionResult?.match?.questionNumber || ''), 10))
+        .filter((n: number) => !isNaN(n))
+    )).sort((a, b) => a - b);
+
+    let qRange = '';
+    if (allQNums.length === 1) {
+      qRange = ` Q${allQNums[0]}`;
+    } else if (allQNums.length > 1) {
+      qRange = ` Q${allQNums[0]} to Q${allQNums[allQNums.length - 1]}`;
+    }
+
+    const subjectPart = validPaper?.subject ? getShortSubjectName(validPaper.subject) : '';
+    const prefix = subjectPart ? `${subjectPart} (Modified)` : 'Modified Paper';
+    return `${prefix}${qRange}`.replace(/\s+/g, ' ').trim();
+  }
+
   if (validPaper) {
     // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
     const p = validPaper;
@@ -1018,7 +1071,8 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     const codePart = p.examCode || '';
     const boardPart = getShortExamBoard(p.examBoard);
     const subjectPart = getShortSubjectName(p.subject || '');
-    const tierPart = p.tier ? `${p.tier}` : '';
+    const rawTier = String(p.tier || '').trim();
+    const tierPart = /^(n\/a|unknown|none)$/i.test(rawTier) ? '' : rawTier;
 
     // Question Range (Q1 to Q8)
     const qNums = p.questions
