@@ -39,8 +39,11 @@ Evaluate EACH sub-question in \`[OFFICIAL SCHEME]\` using its matching paradigm:
 3. **"Any K from N" Pool Rule (CRITICAL — NO GHOST CROSSES)**:
    - When \`[OFFICIAL SCHEME]\` lists multiple alternative/pool bullet points (e.g. 5 possible points for a \`[MAX SCORE: 2]\` sub-question), award \`B1\` for each distinct valid point the student makes **up to \`[MAX SCORE: K]\`**.
    - Once the student has achieved full marks (\`K/K\`) or finished their answer, **DO NOT output \`B0\` crosses for the other unmentioned optional points in the pool!** Only emit a \`B0\` (\`action: "cross"\`) when the student actually wrote an incorrect, rejected, or insufficient statement.
-4. **The List Rule & Tick-Box / MCQ Rule**:
-   - If a question asks for a specific number of responses *N* (e.g., *"Give ONE advantage"*, *"Name TWO processes"*, *"Tick TWO boxes"*) and the student provides *N + E* responses where *E* are extra incorrect responses, each extra incorrect response cancels out 1 correct mark (minimum score 0 for that sub-question).
+4. **The List Rule & Tick-Box / MCQ Visual Override Rule (CRITICAL)**:
+   - **Over-Selection / List Rule ($N + E$)**: If a question asks for a specific number of responses or boxes $N$ (e.g., *"Give ONE advantage"*, *"Tick ONE box"*, *"Tick TWO boxes"*) and the student leaves $N + E$ **active (uncrossed)** responses/ticks, each extra incorrect response $E$ cancels out 1 correct mark (minimum score 0 for that sub-question; e.g., 2 active ticks on a *"Tick one box"* question scores \`0\`).
+   - **Crossed-Out / Scribbled-Over Boxes**: If a student ticks or shades a box and then crosses it out, scribbles over it, or circles another box to reinstate it, **completely ignore the crossed-out box**—do NOT count it as an extra response $E$.
+   - **Page Image Overrides Transcript**: For any shaded-circle (\`[o]\`), tick-box, or checkbox MCQ, ALWAYS visually inspect every option's circle/box directly on the attached page image (watching for faint center dots, light pencil shading, ticks, crossed-out boxes, and circled reinstatements). If \`STUDENT WORK (CLEAN STEPS)\` only shows a bare \`✓\` or misidentifies which box was marked, **trust the attached page image as the ultimate ground truth**.
+   - **MCQ OCR Block Linking**: When marking an MCQ/tick-box, set \`linked_ocr_id\` to the \`RAW OCR BLOCKS\` ID of the **selected option's printed text** (e.g. \`[p0_ocr_12]: "Plankton"\`)—NEVER link to the \`"Tick (✓) one box"\` instruction line—and set \`student_text\` to the selected option's text.
 
 ---
 
@@ -76,16 +79,16 @@ When a question or sub-question has \`[LEVEL DESCRIPTORS]\` or \`[PARADIGM: LEVE
 ### GATE 5: VISUAL INSPECTION, OCR LINE LINKING & SILO BUDGET RULE
 1. **Direct Visual Inspection (Tables, Tick-Boxes, Graphs, Diagrams)**:
    - Always inspect the attached page image(s) directly when a student fills in a table, ticks boxes, draws/labels a diagram, plots points on a graph, or completes a chemical/circuit diagram.
-   - If the handwriting/tick is inside a table, graph, or diagram not captured in \`[CLEAN STUDENT WORK]\`:
-     * If a \`[DRAWING]\` block exists for that sub-question in \`[CLEAN STUDENT WORK]\`, link to its \`line_id\` and \`linked_ocr_id\` with \`ocr_match_status: "VISUAL"\`.
-     * Otherwise, link to the nearest relevant \`[RAW OCR BLOCKS]\` ID (such as the prompt line \`"Plot this data on Figure 1"\`, table row, or diagram caption) with \`ocr_match_status: "MATCHED"\` so the mark is anchored directly beside that prompt/diagram on the page.
+   - If the handwriting/tick is inside a table, graph, or diagram not captured in \`STUDENT WORK (CLEAN STEPS)\`:
+     * If a \`[DRAWING]\` block exists for that sub-question in \`STUDENT WORK (CLEAN STEPS)\`, link to its \`line_id\` and \`linked_ocr_id\` with \`ocr_match_status: "VISUAL"\`.
+     * Otherwise, link to the nearest relevant \`RAW OCR BLOCKS\` ID (such as the prompt line \`"Plot this data on Figure 1"\`, table row, or diagram caption) with \`ocr_match_status: "MATCHED"\` so the mark is anchored directly beside that prompt/diagram on the page.
 2. **Strict Sub-Question Silo, Budget & Concise Margin Reasoning Rule**:
    - Every annotation MUST include \`"subQuestion"\` (e.g. \`"1a"\`, \`"1b"\`, \`"1c"\`).
    - Keep \`annotations[].reasoning\` concise (max 6-8 words, e.g. \`"Ash blocks solar radiation causing cooling"\` or \`"Need GNI/GDP per capita"\`) because it is rendered directly in the page margin; put detailed multi-sentence reasoning in \`step_by_step_evaluation\`.
    - Never exceed \`[MAX SCORE]\` for any sub-question or the total question budget.
 3. **1-to-1 Line & OCR Block Linking**:
-   - Every step in \`[CLEAN STUDENT WORK]\` MUST have an entry in \`step_by_step_evaluation\`.
-   - Use exact \`line_id\` (\`line_1\`, \`line_2\`, ...) and \`linked_ocr_id\` (\`p0_ocr_1\`, ...).
+   - Every step in \`STUDENT WORK (CLEAN STEPS)\` MUST have an entry in \`step_by_step_evaluation\`.
+   - Copy the exact \`line_id\` (e.g. \`p0_q1_line_1\`, never invent \`line_1\`) from \`STUDENT WORK (CLEAN STEPS)\` and the exact \`linked_ocr_id\` (\`p0_ocr_1\`, ...) from \`RAW OCR BLOCKS\`.
    - Never combine multiple mark codes into one annotation (e.g. emit separate annotations for \`M1\` and \`A1\`).
 
 ====================================================

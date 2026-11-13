@@ -65,11 +65,15 @@ export class AnnotationLinker {
             }
 
             const primaryPage = (anno as any).pageIndex ?? 0;
-            // [FIX] Try exact match first ("a"), then composite match ("5a")
+            // [FIX] Try exact match first ("a" or "1.1"), then composite match ("5a" or "1.1")
             let zoneData = this.getEffectiveZone(anno.subQuestion, semanticZones, primaryPage);
-            if (!zoneData) {
-                const compositeKey = `${questionNumber}${anno.subQuestion}`;
-                zoneData = this.getEffectiveZone(compositeKey, semanticZones, primaryPage);
+            if (!zoneData && anno.subQuestion) {
+                const subStr = String(anno.subQuestion).trim();
+                const compositeKey = /^\d+$/.test(subStr)
+                    ? `${questionNumber}.${subStr}`
+                    : `${questionNumber}${subStr}`;
+                zoneData = this.getEffectiveZone(compositeKey, semanticZones, primaryPage)
+                    || this.getEffectiveZone(`${questionNumber}${subStr}`, semanticZones, primaryPage);
             }
 
             let physicalId = anno.linked_ocr_id || anno.linkedOcrId;
@@ -89,26 +93,35 @@ export class AnnotationLinker {
             }
 
             const sourceStep = stepsDataForMapping.find(s => s.line_id === lineId || s.globalBlockId === lineId);
-            const realStudentContent = sourceStep ? sourceStep.text : (anno.text || anno.studentText || "");
+            const rawStudentText = anno.student_text || anno.studentText || "";
+            const realStudentContent = sourceStep ? sourceStep.text : (rawStudentText || anno.text || "");
+            const isMcqSelection =
+                /(?:\[\s*(?:tick(?:ed)?|shad(?:ed)|check(?:ed)?|circl(?:ed)|✓|✔)|\b(?:ticked|shaded)\s+box\b|^[✓✔]|\\checkmark)/i.test(realStudentContent) ||
+                /(?:\[\s*(?:tick(?:ed)?|shad(?:ed)|check(?:ed)?|circl(?:ed)|✓|✔)|\b(?:ticked|shaded)\s+box\b|^[✓✔]|\\checkmark)/i.test(rawStudentText);
+            const cleanMcqContent = this.stripMcqPrefix(rawStudentText || realStudentContent);
 
             if (anno.ocr_match_status === "UNMATCHED" && zoneData && (anno.line_id || anno.lineId)) {
-                const targetText = this.normalizeForRescue(realStudentContent);
+                const rescueSource = isMcqSelection && cleanMcqContent.length >= 2 ? cleanMcqContent : realStudentContent;
+                const targetText = this.normalizeForRescue(rescueSource);
                 const isTooShort = targetText.length < 2;
-                const isRiskOfFalsePositive = targetText.length < 4 && /^[a-z]?[0-9]+$/.test(targetText);
+                const isRiskOfFalsePositive = !isMcqSelection && targetText.length < 4 && /^[a-z]?[0-9]+$/.test(targetText);
 
                 if (!isTooShort && !isRiskOfFalsePositive) {
                     const candidates = allOcrBlocks.filter(b => {
                         const bY = b.coordinates?.y ?? b.bbox?.[1];
                         if (bY === undefined || !ZoneUtils.isPointInZone(bY, zoneData, 0)) return false;
+                        if ((b.text || '').includes('[PRINTED_INSTRUCTION')) return false;
 
                         const bTextNorm = this.normalizeForMatching(b.text || "");
-                        for (const vetoItem of vetoList) {
-                            if (vetoItem.length < 2) continue;
-                            if (vetoItem.includes(bTextNorm) || bTextNorm.includes(vetoItem)) {
-                                if (DEBUG_VETO_REJECT) {
-                                    console.log(` 🚫 [VETO-REJECT] Candidate "${b.text}" matches Veto "${vetoItem}"`);
+                        if (!isMcqSelection) {
+                            for (const vetoItem of vetoList) {
+                                if (vetoItem.length < 2) continue;
+                                if (vetoItem.includes(bTextNorm) || bTextNorm.includes(vetoItem)) {
+                                    if (DEBUG_VETO_REJECT) {
+                                        console.log(` 🚫 [VETO-REJECT] Candidate "${b.text}" matches Veto "${vetoItem}"`);
+                                    }
+                                    return false;
                                 }
-                                return false;
                             }
                         }
 
@@ -164,8 +177,8 @@ export class AnnotationLinker {
                     }
 
                     let isVetoed = false;
-                    // 🛡️ [VETO-PROTECTION]: Only check printed blocks against vetoList. Never veto student handwriting!
-                    if (block.isHandwritten !== true && !isInstructionTag) {
+                    // 🛡️ [VETO-PROTECTION]: Only check printed blocks against vetoList. Never veto student handwriting or MCQ option selections!
+                    if (block.isHandwritten !== true && !isInstructionTag && !isMcqSelection) {
                         for (const vetoItem of vetoList) {
                             if (vetoItem.length < 3) continue;
                             // Only veto if the match is significant (phrase > 5 chars) or an exact match
@@ -191,7 +204,7 @@ export class AnnotationLinker {
                         // If student work contains numbers (e.g. "16.1"), verify the block contains AT LEAST one of them.
                         // Helps prevent "16.1" being linked to Page Number "2".
                         let fidelityVeto = false;
-                        if (block.isHandwritten !== true && !isInstructionTag) {
+                        if (block.isHandwritten !== true && !isInstructionTag && !isMcqSelection) {
                             const studentNums = (realStudentContent || '').match(/\d+(\.\d+)?/g) || [];
                             const blockNums = (block.text || '').match(/\d+(\.\d+)?/g) || [];
 
@@ -295,18 +308,24 @@ export class AnnotationLinker {
             const subQ = anno.subQuestion;
             let validZones = (semanticZones && semanticZones[subQ]) || [];
 
-            // 🛡️ [ZONE-RECOVERY]: If AI returns "i" but zone is "12i", broaden the search
+            // 🛡️ [ZONE-RECOVERY]: If AI returns "i" or "1" but zone is "12i" or "1.1", broaden the search
             const qNum = String(task.questionNumber || "");
             if (validZones.length === 0 && subQ && qNum) {
-                const compositeKey = subQ.startsWith(qNum) ? subQ : `${qNum}${subQ}`;
-                validZones = (semanticZones && semanticZones[compositeKey]) || [];
+                const subStr = String(subQ).trim();
+                const compositeKey = subStr.startsWith(qNum)
+                    ? subStr
+                    : (/^\d+$/.test(subStr) ? `${qNum}.${subStr}` : `${qNum}${subStr}`);
+                validZones = (semanticZones && (semanticZones[compositeKey] || semanticZones[`${qNum}${subStr}`])) || [];
             }
             const validPageIndices = validZones.map((z: any) => z.pageIndex);
 
             if (validPageIndices.length > 0 && !validPageIndices.includes(anno.pageIndex ?? 1000)) {
-                // 🚨 [PARENT-AWARE FIX]: Extract parent question to prevent cross-question teleportation
-                const getParentQuestion = (label: string) => label.replace(/[a-z()]/gi, '').trim();
-                const currentParent = getParentQuestion(subQ || '');
+                // 🚨 [PARENT-AWARE FIX]: Extract base parent question (handles both "12a" -> "12" and "1.2" -> "1")
+                const getParentQuestion = (label: string) => {
+                    const m = String(label || '').trim().match(/^(\d+)/);
+                    return m ? m[1] : String(label || '').replace(/[a-z()]/gi, '').trim();
+                };
+                const currentParent = getParentQuestion(subQ || qNum);
 
                 // Check if any of the valid zones belong to a different parent question
                 const differentParentZones = validZones.filter((z: any) => {
@@ -339,10 +358,12 @@ export class AnnotationLinker {
                 }
             }
 
-            // Fuzzy Printed Recovery
+            // Fuzzy Printed Recovery (Skip for Drawings and MCQ selections anchored to printed options)
             const isPrinted = !sourceStep || sourceStep.isHandwritten === false;
             if (isPrinted) {
-                const isDrawing = (anno as any).ocr_match_status === 'VISUAL' || (anno.text || '').includes('[DRAWING]') || (anno.reasoning && (anno.reasoning.includes('[DRAWING]') || anno.reasoning.includes('plan')));
+                const rawAnnoStudentText = anno.student_text || anno.studentText || sourceStep?.text || "";
+                const isMcqAnno = /(?:\[\s*(?:tick(?:ed)?|shad(?:ed)|check(?:ed)?|circl(?:ed)|✓|✔)|\b(?:ticked|shaded)\s+box\b|^[✓✔]|\\checkmark)/i.test(rawAnnoStudentText);
+                const isDrawing = isMcqAnno || (anno as any).ocr_match_status === 'VISUAL' || (anno.text || '').includes('[DRAWING]') || (anno.reasoning && (anno.reasoning.includes('[DRAWING]') || anno.reasoning.includes('plan')));
                 if (!isDrawing) {
                     const targetText = this.normalizeForRescue(anno.studentText || anno.text || "");
                     if (targetText.length > 0) {
@@ -370,6 +391,17 @@ export class AnnotationLinker {
 
             return anno;
         });
+    }
+
+    public static stripMcqPrefix(text: string): string {
+        if (!text) return "";
+        return text
+            .replace(/\\checkmark/gi, '')
+            .replace(/\\text\s*\{([^}]*)\}/g, '$1')
+            .replace(/\[\s*(?:tick(?:ed)?(?:\s+on)?|shad(?:ed)(?:\/ticked)?(?:\s+box\s*\d*)?|check(?:ed)?|circl(?:ed)|✓|✔)\s*:?\s*\]/gi, '')
+            .replace(/^[✓✔\s\-:]+/, '')
+            .replace(/^\[\|\]$/g, '')
+            .trim();
     }
 
     public static normalizeForMatching(text: string): string {

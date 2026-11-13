@@ -1128,6 +1128,23 @@ export class MarkingInstructionService {
 
     parsedResponse = MarkingResultParser.postProcessMarkingResponse(parsedResponse, normalizedScheme, subQuestionPageMap || {}, inputQuestionNumber || '');
 
+    // 🛡️ [STANDALONE-LOR-SUBQUESTION-SANITIZER]:
+    // If a question has no sub-questions in the scheme or metadata (e.g. English Q2, Q3, Q4, Q5),
+    // clear hallucinated AO-derived subQuestion labels like "4.4" (from Q4 + AO4) so they don't spawn phantom sub-rows.
+    const isHolisticLoR =
+      parsedResponse?.rubricEvaluation?.scoringType === 'SINGLE_AO_LOR' ||
+      parsedResponse?.rubricEvaluation?.scoringType === 'DUAL_AO_LOR';
+    const hasRealSubQuestions =
+      !isHolisticLoR && (
+        (normalizedScheme?.subQuestionMaxScores && Object.keys(normalizedScheme.subQuestionMaxScores).length > 0) ||
+        (subQuestionMetadata?.hasSubQuestions === true && (subQuestionMetadata?.subQuestions?.length || 0) > 0)
+      );
+    if (!hasRealSubQuestions && Array.isArray(parsedResponse?.annotations)) {
+      parsedResponse.annotations.forEach((a: any) => {
+        a.subQuestion = '';
+      });
+    }
+
     if (!parsedResponse || !parsedResponse.annotations) {
       console.error(`🚨 [ANNOTATIONS MISSING] The AI returned this object instead:\n`, JSON.stringify(parsedResponse, null, 2));
       throw new Error('AI failed to generate valid annotations array. See logs for raw output.');

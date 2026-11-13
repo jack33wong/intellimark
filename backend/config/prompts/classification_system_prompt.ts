@@ -80,6 +80,10 @@ You must ONLY extract the following two types of content:
    - **TEXT FIELD ("t") ONLY - NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If the student writes "4+3+1", write "4+3+1", NOT "8". This rule applies **EXCLUSIVELY** to the transcribed "t" string.
    - **COORDINATE FORMATTING ("p" ARRAY) (CRITICAL)**: Coordinates MUST be fully evaluated decimal numbers (e.g., 67.6). Do NOT output formulas, fractions, or operators here (e.g., "676.0 / 10" is FATAL). You MUST internally calculate and evaluate all coordinates before outputting them.
    - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
+   - **MCQ / CHECKBOX / SHADED-CIRCLE SELECTION (CRITICAL)**: When a question uses checkboxes, circles (\`[o]\`, \`○\`, \`☐\`), or tick-boxes:
+     * Inspect **every option's box/circle individually** — never default to the first option.
+     * A student's selection can be a **small faint center dot, light pencil mark, tick, or partial fill** inside the circle/box (not only a solid dark fill).
+     * **NEVER OUTPUT A BARE \`✓\` OR \`\\checkmark\` ALONE**: You MUST include the printed text/letter of the selected option alongside the mark state (e.g., \`"[ticked] Plankton"\`, \`"[shaded] The heat to die down"\`, \`"[shaded] B: The solution was more concentrated"\`). If a box was ticked/shaded and then crossed out/scribbled over, record \`"[crossed out] Polymer"\` and extract the newly selected option on its own line. Never mark an empty \`[o]\`/\`☐\` as selected.
    - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
    - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "t": "...", "p": [x, y, width, height] }] where values are percentages (0-100).
    - **PRECISION (CRITICAL)**: Coordinates MUST point to the actual **handwriting/typed work**. Do NOT point to the printed question labels, margins, or blank space.

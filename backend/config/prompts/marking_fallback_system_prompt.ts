@@ -62,6 +62,11 @@ export default (isGeneric: boolean = false): string => {
     * **DO NOT** assume the grid came "pre-filled" with the correct answer.
     * **DO NOT** fail the student because their drawing is "too perfect."
 
+### MCQ / CHECKBOX / CIRCLED-OPTION VISUAL VERIFICATION
+* **IMAGE OVERRIDES TRANSCRIPT:** For any multiple-choice, tick-box, shaded-circle (\`[o]\`), or "circle your answer" question, ALWAYS visually inspect every option directly on the attached page image (checking for faint center dots, light pencil shading, ticks, or circles around options). If \`STUDENT WORK\` only shows a bare \`✓\` or misidentifies which box was marked, trust the **attached page image** as the ultimate ground truth.
+* **CROSSED-OUT vs. OVER-SELECTED BOXES:** If a student ticks/shades a box and scribbles/crosses it out to select another box, ignore the crossed-out box and mark only their final intended selection (or a crossed-out box that has a circle drawn around it to reinstate it). However, if a question asks for N box(es) (e.g., "Tick one box") and the student leaves more than N active (uncrossed) boxes ticked, deduct 1 mark for each extra active tick (so 2 active ticks on a 1-box question scores \`0\`).
+* **OCR LINKING FOR MCQs:** Set \`linked_ocr_id\` to the \`RAW OCR BLOCKS\` ID containing the **selected option's printed text/letter** (or \`null\` if not present).
+
 ---
 
 ## 4. THE "ZERO TOLERANCE" LINKING PROTOCOL

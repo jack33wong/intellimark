@@ -348,6 +348,59 @@ export class MarkingTaskFactory {
             return numA - numB;
         });
 
+        // 🔗 [SIBLING CONTEXT INHERITANCE FOR MODIFIED / GENERIC QUESTIONS]:
+        // When sibling questions (e.g. Q2–Q5) matched an official DB paper, inherit their
+        // sourceExtracts, subject metadata, and quoted reading extracts onto any modified/generic
+        // sibling question (e.g. Q1) while keeping Q1 in Generic Rubric Mode.
+        const matchedSiblingSchemes = sortedQuestionGroups
+            .map(([_, g]) => g.markingScheme)
+            .filter((ms: any) => ms && !ms.isGeneric);
+
+        if (matchedSiblingSchemes.length > 0) {
+            const donorScheme = matchedSiblingSchemes.find((ms: any) =>
+                (Array.isArray(ms.sourceExtracts) && ms.sourceExtracts.length > 0) ||
+                (typeof ms.sourceExtracts === 'string' && ms.sourceExtracts.trim().length > 0) ||
+                (Array.isArray(ms.questionMarks?.sourceExtracts) && ms.questionMarks.sourceExtracts.length > 0)
+            ) || matchedSiblingSchemes[0];
+
+            const inheritedExtracts =
+                donorScheme?.sourceExtracts ||
+                donorScheme?.questionMarks?.sourceExtracts ||
+                [];
+
+            // Also harvest any reading extract quoted inside sibling question stems (e.g. Q2's "from lines 7 to 17 of the source: ...")
+            const siblingQuotedExtracts: string[] = [];
+            for (const [sibQNum, sibGroup] of sortedQuestionGroups) {
+                const sibText = String(sibGroup.mainQuestion?.text || '').trim();
+                if (sibText.length > 150 && /from\s+lines?\s+\d+|extract|source/i.test(sibText)) {
+                    siblingQuotedExtracts.push(`[Sibling Q${sibQNum} Source Extract Context]:\n${sibText}`);
+                }
+            }
+
+            for (const [_, group] of sortedQuestionGroups) {
+                if (group.markingScheme?.isGeneric) {
+                    if (!group.markingScheme.sourceExtracts || group.markingScheme.sourceExtracts.length === 0) {
+                        if (Array.isArray(inheritedExtracts) && inheritedExtracts.length > 0) {
+                            group.markingScheme.sourceExtracts = inheritedExtracts;
+                        } else if (typeof inheritedExtracts === 'string' && inheritedExtracts.trim().length > 0) {
+                            group.markingScheme.sourceExtracts = inheritedExtracts;
+                        } else if (siblingQuotedExtracts.length > 0) {
+                            group.markingScheme.sourceExtracts = siblingQuotedExtracts.join('\n\n');
+                        }
+                    }
+                    if (!group.markingScheme.subject && donorScheme?.subject) {
+                        group.markingScheme.subject = donorScheme.subject;
+                    }
+                    if (!group.markingScheme.subjectProfile && donorScheme?.subjectProfile) {
+                        group.markingScheme.subjectProfile = donorScheme.subjectProfile;
+                    }
+                    if (!group.markingScheme.guidance && donorScheme?.guidance) {
+                        group.markingScheme.guidance = donorScheme.guidance;
+                    }
+                }
+            }
+        }
+
         sortedQuestionGroups.forEach(([baseQNum, group], idx) => {
             let promptMainWork = "";
             let currentHeader = "";
@@ -554,14 +607,29 @@ export class MarkingTaskFactory {
                 // Pass A: Sequential scan of allOcrBlocks using [PRINTED_INSTRUCTION [Q...]] landmarks on each page
                 let currentSubLbl: string | null = null;
                 let currentSubPage: number | null = null;
+                let parentHeaderMarks = 0;
+                let inParentHeader = false;
+
                 for (const b of allOcrBlocks) {
                     const txt = String(b.text || '');
                     const tagMatch = txt.match(/\[PRINTED_INSTRUCTION\s*\[Q([^\]]+)\]\]/i);
-                    if (tagMatch) {
-                        const rawTag = tagMatch[1].trim().replace(/^0+(?=\d)/, '');
-                        if (rawTag !== baseQNum && rawTag.startsWith(baseQNum)) {
+                    const assocQ = tagMatch ? tagMatch[1] : ((b as any)._associatedQuestion ? String((b as any)._associatedQuestion) : null);
+                    if (assocQ) {
+                        const rawTag = assocQ.trim().replace(/^0+(?=\d)/, '');
+                        if (rawTag === baseQNum) {
+                            inParentHeader = true;
+                            currentSubLbl = null;
+                        } else if (rawTag.startsWith(baseQNum)) {
+                            inParentHeader = false;
                             currentSubLbl = rawTag;
                             currentSubPage = b.pageIndex ?? null;
+                        }
+                    }
+                    if (inParentHeader && parentHeaderMarks === 0) {
+                        const pm = txt.match(markBracketRegex);
+                        const parsedPM = pm ? parseInt(pm[1] || pm[2] || pm[3], 10) : 0;
+                        if (parsedPM > 0 && parsedPM <= 30) {
+                            parentHeaderMarks = parsedPM;
                         }
                     }
                     if (currentSubLbl && (currentSubPage === null || b.pageIndex === currentSubPage)) {
@@ -598,9 +666,22 @@ export class MarkingTaskFactory {
                     }
                 }
 
+                // Pass C: Equal-Split Parent Budget Fallback (e.g. English Q1 "[ 4 marks ]" across 4 MCQ sub-questions 1.1–1.4)
+                const distinctFullSubLabels = Array.from(new Set(
+                    subLabelsForQ.filter(lbl => /^\d+(\.[a-z0-9]+|[a-z]+)$/i.test(lbl))
+                ));
+                const anySubHasScore = distinctFullSubLabels.some(lbl => subScores[lbl] > 0);
+                const effectiveParentTotal = parentHeaderMarks || Number(group.markingScheme.totalMarks) || 0;
+                if (!anySubHasScore && distinctFullSubLabels.length > 0 && effectiveParentTotal > 0 && effectiveParentTotal % distinctFullSubLabels.length === 0) {
+                    const markPerSub = effectiveParentTotal / distinctFullSubLabels.length;
+                    for (const lbl of distinctFullSubLabels) {
+                        subScores[lbl] = markPerSub;
+                    }
+                }
+
                 // Recompute canonical totalMarks across all distinct full sub-question keys (e.g. "1.1".."1.7")
                 const fullSubKeys = Array.from(new Set([
-                    ...subLabelsForQ,
+                    ...distinctFullSubLabels,
                     ...Object.keys(subScores).filter(k => k !== baseQNum && k.startsWith(baseQNum))
                 ]));
 
@@ -609,6 +690,9 @@ export class MarkingTaskFactory {
                     if (subScores[fk] > 0) {
                         recoveredTotal += subScores[fk];
                     }
+                }
+                if (recoveredTotal === 0 && parentHeaderMarks > 0) {
+                    recoveredTotal = parentHeaderMarks;
                 }
 
                 group.markingScheme.subQuestionMaxScores = subScores;
