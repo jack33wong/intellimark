@@ -20,6 +20,7 @@ import AccuracyPage from './pages/AccuracyPage';
 import ProgrammaticLandingPage from './pages/ProgrammaticLandingPage';
 import SearchPage from './pages/SearchPage';
 import EventManager, { EVENT_TYPES } from './utils/eventManager';
+import { trackFunnelEvent } from './utils/funnelTracker';
 import useTheme from './hooks/useTheme';
 import LandingPage from './pages/LandingPage';
 import { HelmetProvider } from 'react-helmet-async';
@@ -189,6 +190,7 @@ function AppContent() {
   };
 
   const handleMarkHomeworkClick = () => {
+    trackFunnelEvent('workspace_reset_clicked', {});
     setSelectedMarkingResult(null);
     setMarkHomeworkResetKey(prev => prev + 1);
   };

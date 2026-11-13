@@ -213,7 +213,8 @@ router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'
         `📊 [FUNNEL] event=${event || 'unknown'} | user=${userId || 'guest'} | anon=${anonymousId || 'unknown'} | path=${path || '/'} | data=${JSON.stringify(metadata)}`
       );
     }
-    AdminAlertService.recordTelemetryEvent(anonymousId, userId, event, path, metadata);
+    const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined;
+    AdminAlertService.recordTelemetryEvent(anonymousId, userId, event, path, metadata, userAgent);
 
     if (event === 'marking_engagement_summary' && metadata?.sessionId) {
       import('../services/firestoreService.js')

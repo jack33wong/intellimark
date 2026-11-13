@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import SEO from '../components/common/SEO';
+import { SUPPORT_EMAIL, getSupportMailto } from '../config/support';
 import './LegalPage.css';
 
 const TermsPage: React.FC = () => {
@@ -60,7 +61,7 @@ const TermsPage: React.FC = () => {
                     <p>These terms are governed by and construed in accordance with the laws of the jurisdiction in which AI Marking operates, without regard to its conflict of law provisions.</p>
 
                     <h2>10. Contact Information</h2>
-                    <p>If you have any questions about these Terms of Service, please contact us at support@aimarking.ai.</p>
+                    <p>If you have any questions about these Terms of Service, please contact us at <a href={getSupportMailto({ subject: 'Terms of Service Inquiry' })}>{SUPPORT_EMAIL}</a>.</p>
                 </div>
             </div>
         </div>

@@ -15,7 +15,7 @@ const AboutPage: React.FC = () => {
         "name": "AI Marking",
         "url": "https://aimarking.ai",
         "logo": "https://aimarking.ai/logo.png",
-        "description": "AI Marking provides spatial logic assessment for GCSE and A-Level mathematics, using 0.1mm precision coordinate mapping to award method marks.",
+        "description": "AI Marking provides spatial logic and Levels of Response (LoR) assessment for GCSE & A-Level Maths, GCSE English Language, and any subject uploaded with its mark scheme.",
         "sameAs": [
             "https://twitter.com/aimarking",
             "https://github.com/aimarking"
@@ -26,7 +26,7 @@ const AboutPage: React.FC = () => {
         <div className="about-page-wrapper light-mode-forced">
             <SEO
                 title="About Us"
-                description="Learn about our mission to combine mathematical precision with automated examiner-grade marking logic."
+                description="Learn about our mission to deliver examiner-grade AI marking across Maths, English Language, and any subject with a mark scheme."
                 schemaData={orgSchema}
             />
             <LandingPageHeader />
@@ -43,7 +43,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Mission</div>
                     <div className="about-manifesto">
                         <p>
-                            We believe that every student deserves immediate, expert-level feedback. Not weeks later, and not just a final grade. AI Marking was built to give every student a 24/7 examiner in their pocket, helping them walk into their GCSEs with absolute confidence.
+                            We believe that every student deserves immediate, expert-level feedback. Not weeks later, and not just a final grade. AI Marking was built to give every student a 24/7 examiner in their pocket, helping them walk into their GCSE and A-Level exams with absolute confidence.
                         </p>
                     </div>
                 </section>
@@ -52,7 +52,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Product</div>
                     <div className="about-manifesto">
                         <p>
-                            Traditional AI just reads text. Our AI understands math. We've built a tool that can read messy handwriting, follow your unique working out, and understand the 'why' behind every step you take, not just the final answer.
+                            Traditional AI just reads text. Our AI understands how examiners mark. Whether it is step-by-step working in Maths, multi-page Levels of Response (LoR) essays in English Language, or any subject paper uploaded alongside its mark scheme, we read messy handwriting and evaluate every mark against official criteria—not just the final answer.
                         </p>
                     </div>
                 </section>
@@ -64,7 +64,7 @@ const AboutPage: React.FC = () => {
                             Founded by a team of former examiners and engineers who hated seeing students fail just because they couldn't afford a private tutor. We set out to build a platform that doesn't just grade papers, but actually teaches you how to improve.
                         </p>
                         <p>
-                            Our system is continuously updated against the latest AQA, Edexcel, and OCR specifications.
+                            Our system is continuously updated against the latest AQA, Edexcel, and OCR specifications, while also letting students upload any subject paper with its mark scheme.
                         </p>
                         <div className="about-signature">
                             AI Marking — Your Best Exam Result.
@@ -76,7 +76,7 @@ const AboutPage: React.FC = () => {
                     <div className="about-label">Our Standards</div>
                     <div className="about-manifesto">
                         <p>
-                            <strong>99.2% Accuracy:</strong> Our AI grades your working out and final answers with the exact same strictness as a senior human examiner.
+                            <strong>99.2% Accuracy:</strong> Our AI grades your working out, essay responses, and final answers with the exact same strictness as a senior human examiner.
                         </p>
                         <p>
                             <strong>Quality Protocol:</strong> Validated against the 2026 AI Quality Protocol for secondary education.

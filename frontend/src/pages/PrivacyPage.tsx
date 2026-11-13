@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import SEO from '../components/common/SEO';
+import { SUPPORT_EMAIL, getSupportMailto } from '../config/support';
 import './LegalPage.css';
 
 const PrivacyPage: React.FC = () => {
@@ -57,13 +58,13 @@ const PrivacyPage: React.FC = () => {
                     <p>We may use third-party service providers (such as payment processors and cloud hosting) to help us operate our business. These providers have access to your information only to perform specific tasks on our behalf.</p>
 
                     <h2>6. Your Rights</h2>
-                    <p>Depending on your location, you may have rights regarding your personal data, including the right to access, correct, or delete your information. Contact us at support@aimarking.ai for any requests.</p>
+                    <p>Depending on your location, you may have rights regarding your personal data, including the right to access, correct, or delete your information. Contact us at <a href={getSupportMailto({ subject: 'Privacy Data Request' })}>{SUPPORT_EMAIL}</a> for any requests.</p>
 
                     <h2>7. Changes to This Policy</h2>
                     <p>We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date.</p>
 
                     <h2>8. Contact Us</h2>
-                    <p>If you have any questions about this Privacy Policy, please contact us at support@aimarking.ai.</p>
+                    <p>If you have any questions about this Privacy Policy, please contact us at <a href={getSupportMailto({ subject: 'Privacy Policy Inquiry' })}>{SUPPORT_EMAIL}</a>.</p>
                 </div>
             </div>
         </div>

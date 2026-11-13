@@ -29,8 +29,8 @@
 
 .unified-modal {
     background: var(--modal-bg);
-    width: 60%;
-    height: 60%;
+    width: min(840px, 92vw);
+    height: min(580px, 85vh);
     border-radius: var(--radius-lg);
     border: 1px solid var(--modal-border);
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
@@ -146,8 +146,10 @@
 /* Content */
 .unified-content {
     flex: 1;
+    min-width: 0;
     padding: 24px 32px;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--modal-bg);
     /* Same bg as sidebar */
 }
@@ -665,8 +667,8 @@
 
 .action-btn.primary {
     background: var(--modal-bg);
-    color: #000;
-    border-color: var(--text-primary);
+    color: var(--text-primary);
+    border-color: var(--modal-border);
 }
 
 .action-btn.primary:hover {
@@ -722,19 +724,31 @@
 
 .account-details-grid {
     display: grid;
-    grid-template-columns: 120px 1fr;
+    grid-template-columns: 120px minmax(0, 1fr);
     gap: 16px 24px;
-    align-items: center;
+    align-items: start;
 }
 
-.detail-label {
+.account-details-grid .detail-label {
     color: var(--text-secondary);
     font-size: 14px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
 }
 
-.detail-value {
+.account-details-grid .detail-value {
     color: var(--text-primary);
     font-size: 14px;
+    font-weight: 400;
+    white-space: normal;
+    text-align: left;
+    margin-left: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.5;
 }
 
 .usage-details-list {

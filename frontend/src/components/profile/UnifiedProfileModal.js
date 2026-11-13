@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, BarChart3, Settings, Crown, X } from 'lucide-react';
+import { User, BarChart3, Settings, Crown, HelpCircle, X } from 'lucide-react';
 import './UnifiedProfileModal.css';
 import AccountSection from './AccountSection';
 import UsageSection from './UsageSection';
 import SettingsSection from './SettingsSection';
 import PlanSection from './PlanSection';
+import SupportSection from './SupportSection';
 
 const UnifiedProfileModal = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -49,6 +50,8 @@ const UnifiedProfileModal = () => {
                 return <SettingsSection />;
             case 'plan':
                 return <PlanSection onClose={handleClose} />;
+            case 'support':
+                return <SupportSection />;
             default:
                 return <AccountSection />;
         }
@@ -94,6 +97,13 @@ const UnifiedProfileModal = () => {
                         >
                             <Crown size={16} />
                             Manage Plan
+                        </button>
+                        <button
+                            className={`unified-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('support')}
+                        >
+                            <HelpCircle size={16} />
+                            Help &amp; Support
                         </button>
                     </div>
 

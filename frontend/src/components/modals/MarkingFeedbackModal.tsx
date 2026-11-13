@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Check, ThumbsDown } from 'lucide-react';
 import { useTelemetry } from '../../hooks/useTelemetry';
+import { SUPPORT_EMAIL, getSupportMailto } from '../../config/support';
 import './MarkingFeedbackModal.css';
 
 interface MarkingFeedbackModalProps {
@@ -196,6 +197,19 @@ const MarkingFeedbackModal: React.FC<MarkingFeedbackModalProps> = ({
                                 Submit Feedback
                             </button>
                         </div>
+
+                        <p style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-secondary, #64748b)', textAlign: 'center' }}>
+                            Need a reply or billing help? Email{' '}
+                            <a
+                                href={getSupportMailto({
+                                    subject: 'AI Marking Support',
+                                    context: sessionId ? `Session ID: ${sessionId}` : undefined
+                                })}
+                                style={{ color: 'inherit', textDecoration: 'underline' }}
+                            >
+                                {SUPPORT_EMAIL}
+                            </a>
+                        </p>
                     </>
                 )}
             </div>

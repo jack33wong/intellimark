@@ -1,7 +1,17 @@
 import React, { useRef, useEffect } from 'react';
 import './HeroAnimation.css';
 
-export const HeroAnimation: React.FC = () => {
+interface HeroAnimationProps {
+    subject?: 'all' | 'maths' | 'english';
+}
+
+const SCANNER_DESCRIPTION: Record<'all' | 'maths' | 'english', string> = {
+    all: "Don't waste time taking 20 separate photos. Use our fast batch-scanner to upload your whole mock paper at once. Our AI accurately reads handwritten equations, multi-page essays, crossed-out working, and any subject paper with its mark scheme.",
+    maths: "Don't waste time taking 20 separate photos. Use our fast batch-scanner to upload your whole mock paper at once. Our AI perfectly reads messy pencil marks, crossed-out working, and complex fractions to find your method marks.",
+    english: "Don't waste time taking 20 separate photos. Use our fast batch-scanner to upload your whole multi-page essay at once. Our AI accurately reads handwritten paragraphs, crossed-out edits, and margin notes to grade against official LoR rubrics."
+};
+
+export const HeroAnimation: React.FC<HeroAnimationProps> = ({ subject = 'all' }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
@@ -21,7 +31,7 @@ export const HeroAnimation: React.FC = () => {
                         Built-In Scanner for Messy Handwriting
                     </h2>
                     <p className="hero-static-description active">
-                        Don't waste time taking 20 separate photos. Use our fast batch-scanner to upload your whole mock paper at once. Our AI perfectly reads messy pencil marks, crossed-out working, and complex fractions to find your method marks.
+                        {SCANNER_DESCRIPTION[subject]}
                     </p>
                 </div>
 

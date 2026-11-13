@@ -32,15 +32,11 @@ export const EdexcelLandingPage: React.FC = () => {
     const [activeTab, setActiveTab] = React.useState<LevelToggleOption>(
         isEnglishRoute ? 'gcse-english' : 'gcse-maths'
     );
-    const [modelPreviewTab, setModelPreviewTab] = React.useState<'maths' | 'english' | null>(null);
-    const isEnglishActive = (modelPreviewTab ?? (activeTab === 'gcse-english' ? 'english' : 'maths')) === 'english';
     const [examData, setExamData] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        if (isEnglishRoute) {
-            setActiveTab('gcse-english');
-        }
+        setActiveTab(isEnglishRoute ? 'gcse-english' : 'gcse-maths');
     }, [isEnglishRoute]);
 
     React.useEffect(() => {
@@ -118,19 +114,19 @@ export const EdexcelLandingPage: React.FC = () => {
             <SeoHeader
                 title={isEnglishRoute
                     ? "Edexcel GCSE English Language Model Answers & AI Marking | Spec 1EN0"
-                    : "Edexcel GCSE Maths & English Language Model Answers & AI Marking | Spec 1MA1 & 1EN0"}
+                    : "Edexcel GCSE & A-Level Maths Model Answers & AI Marking | Spec 1MA1 & 9MA0"}
                 description={isEnglishRoute
                     ? "Get instant Pearson Edexcel GCSE English Language (1EN0/01 & 1EN0/02) model answers and AI marking for past papers. Fiction & Non-Fiction (2020-2025)."
-                    : "Get instant Pearson Edexcel GCSE Maths & English Language model answers and AI marking for 1MA1 and 1EN0 past papers. Step-by-step solutions for Higher & Foundation (2020-2025)."}
+                    : "Get instant Pearson Edexcel GCSE Maths (1MA1) and A-Level Maths (9MA0) model answers and AI marking for past papers. Step-by-step solutions for Higher & Foundation (2020-2025)."}
                 canonicalUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-edexcel-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"}
                 ogTitle={isEnglishRoute
                     ? "Edexcel GCSE English Language Model Answers | Instant AI Marking"
-                    : "Edexcel GCSE Maths & English Model Answers | Instant AI Marking"}
+                    : "Edexcel GCSE & A-Level Maths Model Answers | Instant AI Marking"}
                 ogDescription={isEnglishRoute
                     ? "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for Edexcel 1EN0 English Language (2020-2025)."
-                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all Edexcel 1MA1 maths and 1EN0 English papers (2020-2025)."}
+                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all Edexcel 1MA1 GCSE & 9MA0 A-Level maths papers (2020-2025)."}
                 ogUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-edexcel-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-edexcel-gcse-maths-past-papers"}
@@ -140,8 +136,14 @@ export const EdexcelLandingPage: React.FC = () => {
 
             <section className="landing-section edexcel-hero-section">
                 <div className={`edexcel-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
-                    <h1 className="edexcel-hero-title">Instantly Mark Your <span className="edexcel-highlight-navy">Edexcel</span> Maths &amp; English Papers</h1>
-                    <p className="edexcel-hero-subtitle">Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (1MA1), English Language (1EN0), and A-Level Maths (9MA0).</p>
+                    <h1 className="edexcel-hero-title">
+                        Instantly Mark Your <span className="edexcel-highlight-navy">Edexcel</span> {isEnglishRoute ? 'English Language' : 'Maths'} Papers
+                    </h1>
+                    <p className="edexcel-hero-subtitle">
+                        {isEnglishRoute
+                            ? 'Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your essays like a real examiner. Supports GCSE English Language (1EN0/01 Fiction & 1EN0/02 Non-Fiction).'
+                            : 'Stop staring at confusing Pearson mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (1MA1) and A-Level Maths (9MA0).'}
+                    </p>
 
                     <div className="hero-cta-group">
                         <div className="anim-item">
@@ -161,32 +163,54 @@ export const EdexcelLandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports Edexcel 2020-2025 (GCSE Higher/Foundation Maths, English Language &amp; A-Level Maths). No credit card required.
+                                {isEnglishRoute
+                                    ? 'Supports Edexcel 2020-2025 GCSE English Language (1EN0). No credit card required.'
+                                    : 'Supports Edexcel 2020-2025 (GCSE Higher/Foundation Maths & A-Level Maths). No credit card required.'}
                             </p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <HeroAnimation />
+            <HeroAnimation subject={isEnglishRoute ? 'english' : 'maths'} />
 
             <section className="landing-section edexcel-feature-row">
                 <div className="edexcel-feature-container">
                     <div className="edexcel-feature-visual">
                         <div className="edexcel-mockup-frame">
-                            <img src="/images/spatial_mapping_v3.png" alt="Edexcel Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
-                            <div className="edexcel-badge-overlay">Edexcel 1MA1 &amp; 1EN0 Check</div>
+                            <img
+                                src={isEnglishRoute ? '/images/english_spatial_marking_q2.jpg' : '/images/spatial_mapping_v3.png'}
+                                alt={isEnglishRoute ? 'Edexcel 1EN0 English Language LoR Marking' : 'Edexcel Maths Logic Analysis'}
+                                style={{ width: '100%', borderRadius: '8px' }}
+                            />
+                            <div className="edexcel-badge-overlay">
+                                {isEnglishRoute ? 'Edexcel 1EN0 LoR Check' : 'Edexcel 1MA1 & 9MA0 Check'}
+                            </div>
                         </div>
                     </div>
                     <div className="edexcel-feature-text">
-                        <h2 className="edexcel-section-title">Master the Edexcel Mark Scheme</h2>
+                        <h2 className="edexcel-section-title">
+                            {isEnglishRoute ? 'Master the Edexcel 1EN0 Rubrics' : 'Master the Edexcel Maths Mark Scheme'}
+                        </h2>
                         <p className="edexcel-section-body">
-                            Edexcel exams are known for challenging multi-step math problems and detailed non-fiction essay comparisons. Our AI verifies your entire logical path and comparative structure, ensuring you pick up the method and level marks traditional schemes make hard to understand.
+                            {isEnglishRoute
+                                ? 'Edexcel 1EN0 exams reward detailed language/structure analysis, critical evaluation, and comparative non-fiction synthesis. Our AI grades your handwritten essays against official Levels of Response rubrics so you know exactly how to reach Level 4.'
+                                : 'Edexcel Maths exams are known for challenging multi-step problems. Our AI verifies your entire logical path, ensuring you pick up every M1 method mark and follow-through mark traditional schemes make hard to understand.'}
                         </p>
                         <ul className="edexcel-strategy-list">
-                            <li>Instant Step-by-Step Verification</li>
-                            <li>Precise Follow-through Marking</li>
-                            <li>Examiner-Style Feedback &amp; Rubrics</li>
+                            {isEnglishRoute ? (
+                                <>
+                                    <li>AO1–AO6 Assessment Objective Breakdown</li>
+                                    <li>Levels of Response (LoR) Rubric Grading</li>
+                                    <li>Examiner-Style Essay Feedback</li>
+                                </>
+                            ) : (
+                                <>
+                                    <li>Instant Step-by-Step Verification</li>
+                                    <li>Precise Follow-through Marking</li>
+                                    <li>Examiner-Style Feedback &amp; Rubrics</li>
+                                </>
+                            )}
                         </ul>
                     </div>
                 </div>
@@ -197,51 +221,39 @@ export const EdexcelLandingPage: React.FC = () => {
                     <div className="edexcel-feature-text">
                         <h2 className="edexcel-section-title">Model Answers You'll Actually Understand</h2>
                         <p className="edexcel-section-body">
-                            Tired of cryptic mark schemes? Generate perfect, step-by-step model answers that explain not just WHAT the answer is, but WHY. Perfect for mastering both Grade 8/9 math questions and Level 4 English non-fiction responses.
+                            {isEnglishRoute
+                                ? 'Tired of vague mark scheme descriptors? Generate Grade 9, Level 4 model exemplars that show you how to weave quotes, evaluate perspectives, and structure high-scoring fiction and non-fiction responses.'
+                                : 'Tired of cryptic mark schemes? Generate perfect, step-by-step model answers that explain not just WHAT the answer is, but WHY. Perfect for mastering Grade 8/9 GCSE and A-Level maths questions.'}
                         </p>
                         <ul className="edexcel-strategy-list">
-                            <li>Higher &amp; Foundation Math Coverage</li>
-                            <li>Untiered English Language Exemplars</li>
-                            <li>Alternative Method &amp; Comparative Support</li>
+                            {isEnglishRoute ? (
+                                <>
+                                    <li>Untiered 1EN0/01 &amp; 1EN0/02 Exemplars</li>
+                                    <li>Level 4 Analytical &amp; Comparative Structure</li>
+                                    <li>Transactional &amp; Imaginative Writing Models</li>
+                                </>
+                            ) : (
+                                <>
+                                    <li>Higher &amp; Foundation Math Coverage</li>
+                                    <li>A-Level Pure, Stats &amp; Mechanics</li>
+                                    <li>Alternative Method Support</li>
+                                </>
+                            )}
                         </ul>
                     </div>
                     <div className="edexcel-feature-visual">
                         <div className="exemplar-preview-container">
-                            <div className="exemplar-toggle-wrapper">
-                                <div className="exemplar-toggle-pills">
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${!isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('maths');
-                                            if (activeTab === 'gcse-english') setActiveTab('gcse-maths');
-                                        }}
-                                    >
-                                        📐 Maths M1/A1 Solution
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('english');
-                                            setActiveTab('gcse-english');
-                                        }}
-                                    >
-                                        ✍️ English L4 Exemplar
-                                    </button>
-                                </div>
-                            </div>
                             <div className="edexcel-mobile-frame">
                                 <div className="edexcel-mobile-screen">
                                     <img
-                                        src={isEnglishActive ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
-                                        alt={isEnglishActive ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
+                                        src={isEnglishRoute ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
+                                        alt={isEnglishRoute ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
                                         style={{
                                             width: '100%',
                                             height: '100%',
-                                            objectFit: isEnglishActive ? 'contain' : 'cover',
+                                            objectFit: isEnglishRoute ? 'contain' : 'cover',
                                             objectPosition: 'top center',
-                                            padding: isEnglishActive ? '10px 8px 0 8px' : '0',
+                                            padding: isEnglishRoute ? '10px 8px 0 8px' : '0',
                                             boxSizing: 'border-box',
                                             backgroundColor: '#ffffff'
                                         }}
@@ -255,9 +267,15 @@ export const EdexcelLandingPage: React.FC = () => {
 
             <section id="papers" className="landing-section edexcel-resources-section">
                 <div className="edexcel-resources-content">
-                    <h2 className="edexcel-section-title">Edexcel Past Papers &amp; Model Answers</h2>
+                    <h2 className="edexcel-section-title">
+                        {isEnglishRoute
+                            ? 'Edexcel English Language Past Papers & Model Answers'
+                            : 'Edexcel Maths Past Papers & Model Answers'}
+                    </h2>
 
-                    <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#003057" />
+                    {!isEnglishRoute && (
+                        <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#003057" hideEnglish={true} />
+                    )}
 
                     {loading ? (
                         <div className="papers-loading">
@@ -407,16 +425,23 @@ export const EdexcelLandingPage: React.FC = () => {
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
-                            <div className="chat-bubble user">Why is this mark scheme so confusing?</div>
-                            <div className="chat-bubble ai">
-                                Pearson mark schemes use specific codes. For this question, the <strong>M1 mark</strong> is for the process of using the sine rule, while the <strong>A1 mark</strong> is for the accuracy of your final decimal.
-                            </div>
-                            <div className="chat-bubble user" style={{ marginTop: '12px' }}>
-                                How do I score full marks on Edexcel 1EN0/02 Question 4?
-                            </div>
-                            <div className="chat-bubble ai">
-                                For <strong>Edexcel 1EN0/02 Q4 comparison</strong>, synthesize both texts paragraph-by-paragraph with integrated comparative connectives, directly comparing the writers&apos; differing perspectives.
-                            </div>
+                            {isEnglishRoute ? (
+                                <>
+                                    <div className="chat-bubble user">
+                                        How do I score full marks on Edexcel 1EN0/02 Question 4?
+                                    </div>
+                                    <div className="chat-bubble ai">
+                                        For <strong>Edexcel 1EN0/02 Q4 comparison</strong>, synthesize both texts paragraph-by-paragraph with integrated comparative connectives, directly comparing the writers&apos; differing perspectives.
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="chat-bubble user">Why is this mark scheme so confusing?</div>
+                                    <div className="chat-bubble ai">
+                                        Pearson mark schemes use specific codes. For this question, the <strong>M1 mark</strong> is for the process of using the sine rule, while the <strong>A1 mark</strong> is for the accuracy of your final decimal.
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="tutor-card-text">

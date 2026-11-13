@@ -12,7 +12,7 @@ export const BenefitBlocks: React.FC = () => {
         {
             icon: <Search className="benefit-icon" />,
             header: "Learn From Every Mistake",
-            text: "Don't just get a score. Our AI highlights exactly which method steps you missed so you never make the same mistake twice."
+            text: "Don't just get a score. Our AI highlights exactly which method steps or rubric criteria you missed so you never make the same mistake twice."
         },
         {
             icon: <MessageCircle className="benefit-icon" />,

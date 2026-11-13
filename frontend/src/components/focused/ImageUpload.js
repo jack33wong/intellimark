@@ -98,6 +98,7 @@ const ImageUpload = ({
   // Handle click to open file dialog
   const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
+      trackFunnelEvent('file_picker_opened', { source: 'image_upload' });
       fileInputRef.current.click();
     }
   }, [disabled]);

@@ -20,6 +20,7 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import { mobileUploadService } from '../../services/MobileUploadService';
 import { FileHandoff } from './FileHandoff';
 import { useTelemetry } from '../../hooks/useTelemetry';
+import { trackFunnelEvent } from '../../utils/funnelTracker';
 import './UnifiedChatInput.css';
 
 // Define the type for the props this component receives
@@ -779,8 +780,9 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       handleNegativeCreditsRedirect('upload_button_blocked');
       return;
     }
+    trackFunnelEvent('file_picker_opened', { source: 'unified_chat_input', mode }, user?.uid || null);
     fileInputRef.current?.click();
-  }, [isNegative, handleNegativeCreditsRedirect]);
+  }, [isNegative, handleNegativeCreditsRedirect, mode, user?.uid]);
 
   const handleOpenCameraHandoff = useCallback(async () => {
     if (isNegative) {

@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type { Request } from 'express';
+import admin from 'firebase-admin';
 import { getStorage, getFirebaseAuth, getFirestore } from '../config/firebase.js';
 
 export interface FunnelEventLog {
@@ -72,7 +73,8 @@ export class AdminAlertService {
     userId?: string,
     event?: string,
     path?: string,
-    metadata?: any
+    metadata?: any,
+    userAgent?: string
   ): void {
     try {
       this.sweepExpiredTimers();
@@ -81,8 +83,8 @@ export class AdminAlertService {
       const logEntry: FunnelEventLog = {
         event: event || 'unknown',
         timestamp: now,
-        path,
-        metadata,
+        ...(path ? { path } : {}),
+        ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
 
       if (userId && anonymousId) {
@@ -120,8 +122,48 @@ export class AdminAlertService {
         const oldestKey = this.funnelHistory.keys().next().value;
         if (oldestKey) this.funnelHistory.delete(oldestKey);
       }
+
+      // Fire-and-forget Firestore persistence so multi-instance Cloud Run alerts never miss events
+      void this.persistTelemetryEvent(keysToUpdate, logEntry, userId, anonymousId, userAgent);
     } catch (err) {
       console.error('⚠️ [ADMIN-ALERT] Failed to record telemetry event:', err);
+    }
+  }
+
+  /**
+   * Fire-and-forget write of funnel event to Firestore for cross-instance Cloud Run visibility
+   */
+  private static async persistTelemetryEvent(
+    keysToUpdate: string[],
+    logEntry: FunnelEventLog,
+    userId?: string,
+    anonymousId?: string,
+    userAgent?: string
+  ): Promise<void> {
+    if (keysToUpdate.length === 0) return;
+    try {
+      const db = getFirestore();
+      if (!db) return;
+
+      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await Promise.all(
+        keysToUpdate.map((id) => {
+          const payload: Record<string, any> = {
+            events: admin.firestore.FieldValue.arrayUnion(logEntry),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            expireAt,
+          };
+          if (userId && anonymousId && id === userId) {
+            payload.linkedAnonId = anonymousId;
+          }
+          if (userAgent) {
+            payload.userAgent = userAgent;
+          }
+          return db.collection('funnelTrails').doc(id).set(payload, { merge: true });
+        })
+      );
+    } catch {
+      // Non-critical telemetry persistence must never throw
     }
   }
 
@@ -148,6 +190,63 @@ export class AdminAlertService {
 
     deduplicated.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return deduplicated.slice(-20);
+  }
+
+  /**
+   * Retrieve combined funnel history for a user (in-memory + Firestore across Cloud Run instances)
+   */
+  public static async getPersistedFunnelHistory(
+    identifier: string
+  ): Promise<{ events: FunnelEventLog[]; userAgent?: string }> {
+    const localEvents = this.getRecentFunnelHistory(identifier);
+    let userAgent: string | undefined;
+    const remoteEvents: FunnelEventLog[] = [];
+
+    try {
+      const db = getFirestore();
+      if (db && identifier && identifier !== 'guest' && identifier !== 'anonymous') {
+        const userDoc = await db.collection('funnelTrails').doc(identifier).get();
+        if (userDoc.exists) {
+          const data = userDoc.data();
+          if (Array.isArray(data?.events)) {
+            remoteEvents.push(...data.events);
+          }
+          if (typeof data?.userAgent === 'string') {
+            userAgent = data.userAgent;
+          }
+          const linkedAnonId = data?.linkedAnonId || this.userToAnonMap.get(identifier);
+          if (linkedAnonId && linkedAnonId !== identifier) {
+            const anonDoc = await db.collection('funnelTrails').doc(linkedAnonId).get();
+            if (anonDoc.exists) {
+              const anonData = anonDoc.data();
+              if (Array.isArray(anonData?.events)) {
+                remoteEvents.push(...anonData.events);
+              }
+              if (!userAgent && typeof anonData?.userAgent === 'string') {
+                userAgent = anonData.userAgent;
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall back to local in-memory history
+    }
+
+    const combined = [...remoteEvents, ...localEvents];
+    const seen = new Set<string>();
+    const deduplicated: FunnelEventLog[] = [];
+
+    for (const item of combined) {
+      const key = `${item.timestamp}_${item.event}_${item.path || ''}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(item);
+      }
+    }
+
+    deduplicated.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return { events: deduplicated.slice(-20), userAgent };
   }
 
   /**
@@ -247,7 +346,7 @@ export class AdminAlertService {
         // Ignore user lookup error
       }
 
-      const funnel = this.getRecentFunnelHistory(userId);
+      const { events: funnel, userAgent } = await this.getPersistedFunnelHistory(userId);
       const funnelHtml = funnel.length > 0
         ? `<ul>${funnel.map(f => `<li><strong>${f.timestamp}</strong>: <code>${f.event}</code> (path: ${f.path || '/'}) ${f.metadata ? `<pre style="font-size:11px">${JSON.stringify(f.metadata)}</pre>` : ''}</li>`).join('')}</ul>`
         : '<p><em>No client funnel events recorded.</em></p>';
@@ -270,6 +369,7 @@ export class AdminAlertService {
 
 User ID: ${userId}
 Email: ${userEmail || 'Unknown'}
+Device / UA: ${userAgent || 'Unknown'}
 Platform: ${appUrl}
 Time: ${new Date().toISOString()}
 
@@ -288,6 +388,7 @@ ${funnelText}
   <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
     <tr><td style="padding: 8px 0; border-bottom: 1px solid #eee; width: 140px; font-weight: bold;">User ID:</td><td style="padding: 8px 0; border-bottom: 1px solid #eee;"><code>${userId}</code></td></tr>
     <tr><td style="padding: 8px 0; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px 0; border-bottom: 1px solid #eee;">${userEmail || '<em>Unknown</em>'}</td></tr>
+    <tr><td style="padding: 8px 0; border-bottom: 1px solid #eee; font-weight: bold;">Device / UA:</td><td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 12px; color: #555;">${userAgent || '<em>Unknown</em>'}</td></tr>
     <tr><td style="padding: 8px 0; border-bottom: 1px solid #eee; font-weight: bold;">Detected At:</td><td style="padding: 8px 0; border-bottom: 1px solid #eee;">${new Date().toISOString()}</td></tr>
     <tr><td style="padding: 8px 0; border-bottom: 1px solid #eee; font-weight: bold;">Threshold:</td><td style="padding: 8px 0; border-bottom: 1px solid #eee;">3 minutes without marking, model answer, or chat</td></tr>
   </table>
@@ -413,7 +514,7 @@ ${funnelText}
         const errorStack = error instanceof Error ? error.stack : '';
 
         // Funnel history
-        const funnel = this.getRecentFunnelHistory(userId);
+        const { events: funnel } = await this.getPersistedFunnelHistory(userId);
         const funnelHtml = funnel.length > 0
           ? `<ul>${funnel.map(f => `<li><strong>${f.timestamp}</strong>: <code>${f.event}</code> (path: ${f.path || '/'})</li>`).join('')}</ul>`
           : '<p><em>No recent funnel events recorded.</em></p>';

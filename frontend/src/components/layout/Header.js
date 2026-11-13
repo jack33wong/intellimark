@@ -19,6 +19,7 @@ import {
   Menu
 } from 'lucide-react';
 import API_CONFIG from '../../config/api';
+import { SUPPORT_EMAIL } from '../../config/support';
 import './Header.css';
 import '../credits.css';
 import { useCredits } from '../../hooks/useCredits';
@@ -376,7 +377,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       handleSubscriptionDetailsClose();
     } catch (error) {
       console.error('Error canceling subscription:', error);
-      alert('Failed to cancel subscription. Please try again or contact support.');
+      alert(`Failed to cancel subscription. Please try again or contact ${SUPPORT_EMAIL}.`);
     }
   };
 

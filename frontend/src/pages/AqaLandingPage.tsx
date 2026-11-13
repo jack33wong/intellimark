@@ -32,15 +32,11 @@ export const AqaLandingPage: React.FC = () => {
     const [activeTab, setActiveTab] = React.useState<LevelToggleOption>(
         isEnglishRoute ? 'gcse-english' : 'gcse-maths'
     );
-    const [modelPreviewTab, setModelPreviewTab] = React.useState<'maths' | 'english' | null>(null);
-    const isEnglishActive = (modelPreviewTab ?? (activeTab === 'gcse-english' ? 'english' : 'maths')) === 'english';
     const [examData, setExamData] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        if (isEnglishRoute) {
-            setActiveTab('gcse-english');
-        }
+        setActiveTab(isEnglishRoute ? 'gcse-english' : 'gcse-maths');
     }, [isEnglishRoute]);
 
     React.useEffect(() => {
@@ -118,19 +114,19 @@ export const AqaLandingPage: React.FC = () => {
             <SeoHeader
                 title={isEnglishRoute
                     ? "AQA GCSE English Language Model Answers & AI Marking | Spec 8700"
-                    : "AQA GCSE Maths & English Language Model Answers & AI Marking | Spec 8300 & 8700"}
+                    : "AQA GCSE & A-Level Maths Model Answers & AI Marking | Spec 8300 & 7357"}
                 description={isEnglishRoute
                     ? "Get instant AQA GCSE English Language (8700/1 & 8700/2) model answers and AI marking for past papers. Accurate marking schemes for Creative & Viewpoints (2020-2025)."
-                    : "Get instant AQA GCSE Maths & English Language model answers and AI marking for 8300 and 8700 past papers. Accurate marking schemes and step-by-step solutions (2020-2025)."}
+                    : "Get instant AQA GCSE Maths (8300) and A-Level Maths (7357) model answers and AI marking for past papers. Accurate marking schemes and step-by-step solutions (2020-2025)."}
                 canonicalUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-aqa-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-aqa-gcse-maths-past-papers"}
                 ogTitle={isEnglishRoute
                     ? "AQA GCSE English Language Model Answers | Instant AI Marking & Grades"
-                    : "AQA GCSE Maths & English Model Answers | Instant AI Marking & Grades"}
+                    : "AQA GCSE & A-Level Maths Model Answers | Instant AI Marking & Grades"}
                 ogDescription={isEnglishRoute
                     ? "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for AQA 8700 English Language (2020-2025)."
-                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all AQA 8300 maths and 8700 English papers (2020-2025)."}
+                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all AQA 8300 GCSE & 7357 A-Level maths papers (2020-2025)."}
                 ogUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-aqa-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-aqa-gcse-maths-past-papers"}
@@ -140,8 +136,14 @@ export const AqaLandingPage: React.FC = () => {
 
             <section className="landing-section aqa-hero-section">
                 <div className={`aqa-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
-                    <h1 className="aqa-hero-title">Instantly Mark Your <span className="aqa-highlight-blue">AQA</span> Maths &amp; English Papers</h1>
-                    <p className="aqa-hero-subtitle">Stop staring at confusing AQA mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (8300), English Language (8700), and A-Level Maths (7357).</p>
+                    <h1 className="aqa-hero-title">
+                        Instantly Mark Your <span className="aqa-highlight-blue">AQA</span> {isEnglishRoute ? 'English Language' : 'Maths'} Papers
+                    </h1>
+                    <p className="aqa-hero-subtitle">
+                        {isEnglishRoute
+                            ? 'Stop staring at confusing AQA mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your essays like a real examiner. Supports GCSE English Language (8700/1 Creative & 8700/2 Viewpoints).'
+                            : 'Stop staring at confusing AQA mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (8300) and A-Level Maths (7357).'}
+                    </p>
 
                     <div className="hero-cta-group">
                         <div className="anim-item">
@@ -161,27 +163,39 @@ export const AqaLandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports AQA 2020-2025 (GCSE Higher/Foundation Maths, English Language &amp; A-Level Maths). No credit card required.
+                                {isEnglishRoute
+                                    ? 'Supports AQA 2020-2025 GCSE English Language (8700). No credit card required.'
+                                    : 'Supports AQA 2020-2025 (GCSE Higher/Foundation Maths & A-Level Maths). No credit card required.'}
                             </p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <HeroAnimation />
+            <HeroAnimation subject={isEnglishRoute ? 'english' : 'maths'} />
 
             <section className="landing-section aqa-feature-row">
                 <div className="aqa-feature-container">
                     <div className="aqa-feature-visual">
                         <div className="aqa-mockup-frame">
-                            <img src="/images/spatial_mapping_v3.png" alt="AQA Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
-                            <div className="aqa-badge-overlay">AQA 8300 &amp; 8700 Logic Check</div>
+                            <img
+                                src={isEnglishRoute ? '/images/english_spatial_marking_q2.jpg' : '/images/spatial_mapping_v3.png'}
+                                alt={isEnglishRoute ? 'AQA 8700 English Language LoR Marking' : 'AQA Maths Logic Analysis'}
+                                style={{ width: '100%', borderRadius: '8px' }}
+                            />
+                            <div className="aqa-badge-overlay">
+                                {isEnglishRoute ? 'AQA 8700 LoR Check' : 'AQA 8300 & 7357 Logic Check'}
+                            </div>
                         </div>
                     </div>
                     <div className="aqa-feature-text">
-                        <h2 className="aqa-section-title">Get Every Method &amp; Level Mark</h2>
+                        <h2 className="aqa-section-title">
+                            {isEnglishRoute ? 'Hit Every Level & Assessment Objective' : 'Get Every Method & Accuracy Mark'}
+                        </h2>
                         <p className="aqa-section-body">
-                            AQA examiners reward method steps in Maths and perceptual insights in English Language. Our AI reads your handwriting step-by-step to find every hidden mark you deserve, showing you exactly how to boost your grade.
+                            {isEnglishRoute
+                                ? 'AQA 8700 examiners reward perceptive language analysis (AO2), structural shifts, and critical evaluation (AO4). Our AI grades your handwritten essays against official Levels of Response rubrics, showing you exactly how to push from Level 3 to Level 4.'
+                                : 'AQA Maths examiners reward clear method steps (M1) even when your final answer slips. Our AI reads your handwritten working step-by-step to find every hidden mark you deserve, showing you exactly how to boost your grade.'}
                         </p>
                     </div>
                 </div>
@@ -192,46 +206,24 @@ export const AqaLandingPage: React.FC = () => {
                     <div className="aqa-feature-text">
                         <h2 className="aqa-section-title">Stuck on a Hard Question?</h2>
                         <p className="aqa-section-body">
-                            Generate perfect, step-by-step model answers using the exact layout and terminology that AQA examiners look for. Learn how to structure mathematical proofs and English essay responses for maximum marks.
+                            {isEnglishRoute
+                                ? 'Generate Grade 9, Level 4 model exemplars using the exact analytical structure, embedded quotes, and evaluative phrasing that AQA 8700 examiners look for across Paper 1 and Paper 2.'
+                                : 'Generate perfect, step-by-step model answers using the exact mathematical layout and terminology that AQA 8300 and 7357 examiners look for to award full M1 and A1 marks.'}
                         </p>
                     </div>
                     <div className="aqa-feature-visual">
                         <div className="exemplar-preview-container">
-                            <div className="exemplar-toggle-wrapper">
-                                <div className="exemplar-toggle-pills">
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${!isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('maths');
-                                            if (activeTab === 'gcse-english') setActiveTab('gcse-maths');
-                                        }}
-                                    >
-                                        📐 Maths M1/A1 Solution
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('english');
-                                            setActiveTab('gcse-english');
-                                        }}
-                                    >
-                                        ✍️ English L4 Exemplar
-                                    </button>
-                                </div>
-                            </div>
                             <div className="aqa-mobile-frame">
                                 <div className="aqa-mobile-screen">
                                     <img
-                                        src={isEnglishActive ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
-                                        alt={isEnglishActive ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
+                                        src={isEnglishRoute ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
+                                        alt={isEnglishRoute ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
                                         style={{
                                             width: '100%',
                                             height: '100%',
-                                            objectFit: isEnglishActive ? 'contain' : 'cover',
+                                            objectFit: isEnglishRoute ? 'contain' : 'cover',
                                             objectPosition: 'top center',
-                                            padding: isEnglishActive ? '10px 8px 0 8px' : '0',
+                                            padding: isEnglishRoute ? '10px 8px 0 8px' : '0',
                                             boxSizing: 'border-box',
                                             backgroundColor: '#ffffff'
                                         }}
@@ -245,9 +237,15 @@ export const AqaLandingPage: React.FC = () => {
 
             <section id="papers" className="landing-section aqa-resources-section">
                 <div className="aqa-resources-content">
-                    <h2 className="aqa-section-title">AQA Past Papers &amp; Model Answers</h2>
+                    <h2 className="aqa-section-title">
+                        {isEnglishRoute
+                            ? 'AQA English Language Past Papers & Model Answers'
+                            : 'AQA Maths Past Papers & Model Answers'}
+                    </h2>
 
-                    <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#004B98" />
+                    {!isEnglishRoute && (
+                        <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#004B98" hideEnglish={true} />
+                    )}
 
                     {loading ? (
                         <div className="papers-loading">
@@ -397,17 +395,24 @@ export const AqaLandingPage: React.FC = () => {
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
-                            <div className="chat-bubble user">Why is this only 2 marks?</div>
-                            <div className="chat-bubble ai">
-                                You missed the <strong>A1 Accuracy Mark</strong>. For AQA Maths, you must
-                                explicitly state the value of the rearrangement to get full marks.
-                            </div>
-                            <div className="chat-bubble user" style={{ marginTop: '12px' }}>
-                                How do I push my Question 4 response to Level 4 on AQA 8700/1?
-                            </div>
-                            <div className="chat-bubble ai">
-                                To reach <strong>Level 4 (Perceptive &amp; Detailed)</strong>, go beyond analyzing quotes in isolation. Zoom in on how structural shifts and the writer&apos;s tone shape the reader&apos;s reaction.
-                            </div>
+                            {isEnglishRoute ? (
+                                <>
+                                    <div className="chat-bubble user">
+                                        How do I push my Question 4 response to Level 4 on AQA 8700/1?
+                                    </div>
+                                    <div className="chat-bubble ai">
+                                        To reach <strong>Level 4 (Perceptive &amp; Detailed)</strong>, go beyond analyzing quotes in isolation. Zoom in on how structural shifts and the writer&apos;s tone shape the reader&apos;s reaction.
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="chat-bubble user">Why is this only 2 marks?</div>
+                                    <div className="chat-bubble ai">
+                                        You missed the <strong>A1 Accuracy Mark</strong>. For AQA Maths, you must
+                                        explicitly state the value of the rearrangement to get full marks.
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="tutor-card-text">

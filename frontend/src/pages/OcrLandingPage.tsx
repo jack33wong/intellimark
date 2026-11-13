@@ -32,15 +32,11 @@ export const OcrLandingPage: React.FC = () => {
     const [activeTab, setActiveTab] = React.useState<LevelToggleOption>(
         isEnglishRoute ? 'gcse-english' : 'gcse-maths'
     );
-    const [modelPreviewTab, setModelPreviewTab] = React.useState<'maths' | 'english' | null>(null);
-    const isEnglishActive = (modelPreviewTab ?? (activeTab === 'gcse-english' ? 'english' : 'maths')) === 'english';
     const [examData, setExamData] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        if (isEnglishRoute) {
-            setActiveTab('gcse-english');
-        }
+        setActiveTab(isEnglishRoute ? 'gcse-english' : 'gcse-maths');
     }, [isEnglishRoute]);
 
     React.useEffect(() => {
@@ -118,19 +114,19 @@ export const OcrLandingPage: React.FC = () => {
             <SeoHeader
                 title={isEnglishRoute
                     ? "OCR GCSE English Language Model Answers & AI Marking | Spec J351"
-                    : "OCR GCSE Maths & English Language Model Answers & AI Marking | Spec J560 & J351"}
+                    : "OCR GCSE Maths Model Answers & AI Marking | Spec J560"}
                 description={isEnglishRoute
                     ? "Get instant OCR GCSE English Language (J351/01 & J351/02) model answers and AI marking for past papers. Non-Fiction & Literary (2020-2025)."
-                    : "Get instant OCR GCSE Maths & English Language model answers and AI marking for J560 and J351 past papers. Detailed mark schemes and step-by-step solutions (2020-2025)."}
+                    : "Get instant OCR GCSE Maths (J560) model answers and AI marking for past papers. Detailed mark schemes and step-by-step solutions (2020-2025)."}
                 canonicalUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-ocr-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-ocr-gcse-maths-past-papers"}
                 ogTitle={isEnglishRoute
                     ? "OCR GCSE English Language Model Answers | Instant AI Marking"
-                    : "OCR GCSE Maths & English Model Answers | Instant AI Marking"}
+                    : "OCR GCSE Maths Model Answers | Instant AI Marking"}
                 ogDescription={isEnglishRoute
                     ? "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for OCR J351 English Language (2020-2025)."
-                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all OCR J560 maths and J351 English papers (2020-2025)."}
+                    : "Stop searching for mark schemes. Get instant examiner-grade model answers and AI marking for all OCR J560 GCSE Maths papers (2020-2025)."}
                 ogUrl={isEnglishRoute
                     ? "https://aimarking.ai/mark-ocr-gcse-english-language-past-papers"
                     : "https://aimarking.ai/mark-ocr-gcse-maths-past-papers"}
@@ -140,9 +136,17 @@ export const OcrLandingPage: React.FC = () => {
 
             <section className="landing-section ocr-hero-section">
                 <div className={`ocr-hero-content ${startAnimations ? 'trigger-anim' : ''}`}>
-                    <h1 className="ocr-hero-title">Instantly Mark Your <span className="ocr-highlight-green">OCR</span> Maths &amp; English Papers</h1>
-                    <p className="ocr-hero-subtitle">Stop staring at confusing OCR mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (J560) and English Language (J351).</p>
-                    <p className="ocr-hero-subtitle">(Note: OCR A-Level Maths support is currently in training and launching soon!)</p>
+                    <h1 className="ocr-hero-title">
+                        Instantly Mark Your <span className="ocr-highlight-green">OCR</span> {isEnglishRoute ? 'English Language' : 'Maths'} Papers
+                    </h1>
+                    <p className="ocr-hero-subtitle">
+                        {isEnglishRoute
+                            ? 'Stop staring at confusing OCR mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your essays like a real examiner. Supports GCSE English Language (J351/01 Non-Fiction & J351/02 Literary).'
+                            : 'Stop staring at confusing OCR mark schemes. Scan your handwritten 2020-2025 past papers and let our AI instantly grade your work like a real examiner. Supports GCSE Maths (J560).'}
+                    </p>
+                    {!isEnglishRoute && (
+                        <p className="ocr-hero-subtitle">(Note: OCR A-Level Maths support is currently in training and launching soon!)</p>
+                    )}
                     <div className="hero-cta-group">
                         <div className="anim-item">
                             <button className="hero-primary-cta" onClick={() => navigate('/app?action=scan')}>
@@ -161,27 +165,39 @@ export const OcrLandingPage: React.FC = () => {
                             </button>
 
                             <p className="hero-trust-microcopy">
-                                Supports OCR 2020-2025 (GCSE Higher/Foundation Maths &amp; English Language). No credit card required.
+                                {isEnglishRoute
+                                    ? 'Supports OCR 2020-2025 GCSE English Language (J351). No credit card required.'
+                                    : 'Supports OCR 2020-2025 (GCSE Higher/Foundation Maths J560). No credit card required.'}
                             </p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <HeroAnimation />
+            <HeroAnimation subject={isEnglishRoute ? 'english' : 'maths'} />
 
             <section className="landing-section ocr-feature-row">
                 <div className="ocr-feature-container">
                     <div className="ocr-feature-visual">
                         <div className="ocr-mockup-frame">
-                            <img src="/images/spatial_mapping_v3.png" alt="OCR Logic Analysis" style={{ width: '100%', borderRadius: '8px' }} />
-                            <div className="ocr-badge-overlay">OCR J560 &amp; J351 Check</div>
+                            <img
+                                src={isEnglishRoute ? '/images/english_spatial_marking_q2.jpg' : '/images/spatial_mapping_v3.png'}
+                                alt={isEnglishRoute ? 'OCR J351 English Language LoR Marking' : 'OCR Maths Logic Analysis'}
+                                style={{ width: '100%', borderRadius: '8px' }}
+                            />
+                            <div className="ocr-badge-overlay">
+                                {isEnglishRoute ? 'OCR J351 LoR Check' : 'OCR J560 Logic Check'}
+                            </div>
                         </div>
                     </div>
                     <div className="ocr-feature-text">
-                        <h2 className="ocr-section-title">OCR Examiner Logic &amp; Rubrics</h2>
+                        <h2 className="ocr-section-title">
+                            {isEnglishRoute ? 'OCR English Rubrics & Synthesis' : 'OCR Maths Examiner Logic'}
+                        </h2>
                         <p className="ocr-section-body">
-                            OCR papers test application of knowledge in Maths and perceptive analysis across contrasting 19th &amp; 21st-century texts in English. Our AI is trained to recognize OCR-specific marking patterns, ensuring you get credit for every valid method step and analytical synthesis.
+                            {isEnglishRoute
+                                ? 'OCR J351 tests perceptive analysis and comparison across contrasting 19th & 21st-century texts. Our AI grades your handwritten essays against official Levels of Response rubrics, ensuring you get credit for every analytical synthesis and evaluative point.'
+                                : 'OCR J560 papers test multi-step problem solving and mathematical reasoning. Our AI reads your handwritten working step-by-step to recognize OCR-specific marking patterns, ensuring you get every valid method and special-case mark.'}
                         </p>
                     </div>
                 </div>
@@ -192,46 +208,24 @@ export const OcrLandingPage: React.FC = () => {
                     <div className="ocr-feature-text">
                         <h2 className="ocr-section-title">Crystal Clear Solutions &amp; Model Exemplars</h2>
                         <p className="ocr-section-body">
-                            Our model answers break down the most difficult OCR questions into manageable steps. Learn the exact mathematical terminology and English comparative layout required to secure full marks on every paper.
+                            {isEnglishRoute
+                                ? 'Our model exemplars break down the hardest OCR J351 synthesis, evaluation, and writing tasks. Learn the exact comparative layout and analytical phrasing required to secure Level 4 / Grade 9 marks.'
+                                : 'Our model answers break down the most difficult OCR J560 questions into manageable steps. Learn the exact mathematical terminology and proof structure required to secure full M1 and A1 marks.'}
                         </p>
                     </div>
                     <div className="ocr-feature-visual">
                         <div className="exemplar-preview-container">
-                            <div className="exemplar-toggle-wrapper">
-                                <div className="exemplar-toggle-pills">
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${!isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('maths');
-                                            if (activeTab === 'gcse-english') setActiveTab('gcse-maths');
-                                        }}
-                                    >
-                                        📐 Maths M1/A1 Solution
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`exemplar-toggle-btn ${isEnglishActive ? 'active' : ''}`}
-                                        onClick={() => {
-                                            setModelPreviewTab('english');
-                                            setActiveTab('gcse-english');
-                                        }}
-                                    >
-                                        ✍️ English L4 Exemplar
-                                    </button>
-                                </div>
-                            </div>
                             <div className="ocr-mobile-frame">
                                 <div className="ocr-mobile-screen">
                                     <img
-                                        src={isEnglishActive ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
-                                        alt={isEnglishActive ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
+                                        src={isEnglishRoute ? '/images/english_model_answer_exemplar.jpg?v=3' : '/images/aqa_question_mode_v2.png'}
+                                        alt={isEnglishRoute ? 'GCSE English Language Grade 9 Model Exemplar with AO2 Level 4 Annotations' : 'GCSE Maths Step-by-Step Model Answer'}
                                         style={{
                                             width: '100%',
                                             height: '100%',
-                                            objectFit: isEnglishActive ? 'contain' : 'cover',
+                                            objectFit: isEnglishRoute ? 'contain' : 'cover',
                                             objectPosition: 'top center',
-                                            padding: isEnglishActive ? '10px 8px 0 8px' : '0',
+                                            padding: isEnglishRoute ? '10px 8px 0 8px' : '0',
                                             boxSizing: 'border-box',
                                             backgroundColor: '#ffffff'
                                         }}
@@ -245,9 +239,15 @@ export const OcrLandingPage: React.FC = () => {
 
             <section id="papers" className="landing-section ocr-resources-section">
                 <div className="ocr-resources-content">
-                    <h2 className="ocr-section-title">OCR Past Papers &amp; Model Answers</h2>
+                    <h2 className="ocr-section-title">
+                        {isEnglishRoute
+                            ? 'OCR English Language Past Papers & Model Answers'
+                            : 'OCR Maths Past Papers & Model Answers'}
+                    </h2>
 
-                    <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#007382" />
+                    {!isEnglishRoute && (
+                        <LevelToggle level={activeTab} onChange={setActiveTab} primaryColor="#007382" hideEnglish={true} />
+                    )}
 
                     {loading ? (
                         <div className="papers-loading">
@@ -397,16 +397,23 @@ export const OcrLandingPage: React.FC = () => {
                 <div className="tutor-feature-card">
                     <div className="tutor-card-visual">
                         <div className="board-chat-mockup">
-                            <div className="chat-bubble user">How do I get the 'special case' marks?</div>
-                            <div className="chat-bubble ai">
-                                For OCR Maths, these are often <strong>SC marks</strong>. If you used the wrong perimeter but your method was consistent, our AI identifies this and awards the credit automatically.
-                            </div>
-                            <div className="chat-bubble user" style={{ marginTop: '12px' }}>
-                                How do I score full marks on OCR J351/01 Question 2?
-                            </div>
-                            <div className="chat-bubble ai">
-                                For <strong>OCR J351/01 Q2</strong>, ensure you synthesize specific similarities across both texts with embedded quotes, focusing on the writers&apos; thoughts and feelings rather than external facts.
-                            </div>
+                            {isEnglishRoute ? (
+                                <>
+                                    <div className="chat-bubble user">
+                                        How do I score full marks on OCR J351/01 Question 2?
+                                    </div>
+                                    <div className="chat-bubble ai">
+                                        For <strong>OCR J351/01 Q2</strong>, ensure you synthesize specific similarities across both texts with embedded quotes, focusing on the writers&apos; thoughts and feelings rather than external facts.
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="chat-bubble user">How do I get the 'special case' marks?</div>
+                                    <div className="chat-bubble ai">
+                                        For OCR Maths, these are often <strong>SC marks</strong>. If you used the wrong perimeter but your method was consistent, our AI identifies this and awards the credit automatically.
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="tutor-card-text">

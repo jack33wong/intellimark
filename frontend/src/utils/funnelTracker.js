@@ -15,14 +15,32 @@ export const getAnonymousId = () => {
   }
 };
 
+export const getNavigationType = () => {
+  try {
+    const navEntry = performance.getEntriesByType?.('navigation')?.[0];
+    return navEntry?.type || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+};
+
+/**
+ * @param {string} eventName
+ * @param {Record<string, any>} [metadata]
+ * @param {string | null} [userId]
+ */
 export const trackFunnelEvent = (eventName, metadata = {}, userId = null) => {
   try {
+    const viewport =
+      typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : null;
+
     const payload = JSON.stringify({
       event: eventName,
       userId: userId || null,
       anonymousId: getAnonymousId(),
       path: window.location.pathname + window.location.search,
       origin: window.location.origin,
+      viewport,
       timestamp: new Date().toISOString(),
       ...metadata
     });

@@ -8,13 +8,15 @@ interface LevelToggleProps {
   onChange: (level: any) => void;
   primaryColor?: string;
   hideAlevel?: boolean;
+  hideEnglish?: boolean;
 }
 
 export const LevelToggle: React.FC<LevelToggleProps> = ({ 
   level, 
   onChange, 
   primaryColor = '#7f00ff',
-  hideAlevel = false
+  hideAlevel = false,
+  hideEnglish = false
 }) => {
   const is3Way = level === 'gcse-maths' || level === 'gcse-english' || level === 'alevel-maths';
 
@@ -65,20 +67,22 @@ export const LevelToggle: React.FC<LevelToggleProps> = ({
           <span className="level-toggle__icon">📐</span>
           <span>GCSE Maths (9-1)</span>
         </button>
-        <button
-          type="button"
-          className={`level-toggle__btn ${level === 'gcse-english' ? 'level-toggle__btn--active' : ''}`}
-          onClick={() => onChange('gcse-english')}
-          style={{
-            backgroundColor: level === 'gcse-english' ? primaryColor : 'transparent',
-            borderColor: level === 'gcse-english' ? primaryColor : 'rgba(0, 0, 0, 0.12)',
-            color: level === 'gcse-english' ? '#ffffff' : '#475569'
-          }}
-        >
-          <span className="level-toggle__icon">✍️</span>
-          <span>GCSE English Language</span>
-          <span className="level-toggle__badge-new">NEW</span>
-        </button>
+        {!hideEnglish && (
+          <button
+            type="button"
+            className={`level-toggle__btn ${level === 'gcse-english' ? 'level-toggle__btn--active' : ''}`}
+            onClick={() => onChange('gcse-english')}
+            style={{
+              backgroundColor: level === 'gcse-english' ? primaryColor : 'transparent',
+              borderColor: level === 'gcse-english' ? primaryColor : 'rgba(0, 0, 0, 0.12)',
+              color: level === 'gcse-english' ? '#ffffff' : '#475569'
+            }}
+          >
+            <span className="level-toggle__icon">✍️</span>
+            <span>GCSE English Language</span>
+            <span className="level-toggle__badge-new">NEW</span>
+          </button>
+        )}
         {!hideAlevel && (
           <button
             type="button"

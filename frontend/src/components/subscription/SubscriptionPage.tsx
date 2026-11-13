@@ -12,6 +12,7 @@ import ConfigService from '../../services/configService';
 import { useCredits } from '../../hooks/useCredits';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useTelemetry } from '../../hooks/useTelemetry';
+import { SUPPORT_EMAIL, getSupportMailto } from '../../config/support';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -1140,7 +1141,7 @@ const SubscriptionPage: React.FC = () => {
 
         {/* Footer */}
         <div className="upgrade-page-footer">
-          <p>Questions? Contact us at <a href="mailto:support@aimarking.ai">support@aimarking.ai</a></p>
+          <p>Questions? Contact us at <a href={getSupportMailto({ subject: 'Billing & Plan Question', userEmail: user?.email })}>{SUPPORT_EMAIL}</a></p>
         </div>
       </div>
     </div>

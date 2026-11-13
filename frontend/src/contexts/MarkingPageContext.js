@@ -14,7 +14,7 @@ import { useCredits } from '../hooks/useCredits';
 import InsufficientCreditsModal from '../components/common/InsufficientCreditsModal';
 import { useModels } from './ModelContext';
 import GuestLimitModal from '../components/modals/GuestLimitModal';
-import { trackFunnelEvent } from '../utils/funnelTracker';
+import { trackFunnelEvent, getNavigationType } from '../utils/funnelTracker';
 import { getSessionModel } from '../utils/modelDisplay';
 
 // --- INDEXEDDB AUTH STASH HELPERS ---
@@ -172,6 +172,14 @@ export const MarkingPageProvider = ({
 
   const { credits, isNegative, refreshCredits, ensureCredits, loading: creditsLoading } = useCredits();
   const [showCreditsModal, setShowCreditsModal] = React.useState(false);
+
+  useEffect(() => {
+    if (showCreditsModal) {
+      trackFunnelEvent('credits_modal_shown', {
+        remainingCredits: credits?.remainingCredits ?? 0
+      }, user?.uid);
+    }
+  }, [showCreditsModal, credits?.remainingCredits, user?.uid]);
   const [showGuestLimitModal, setShowGuestLimitModal] = React.useState(false);
   const [guestLimitInfo, setGuestLimitInfo] = React.useState({ usageCount: 0, usageLimit: 0, resetAt: null });
   const [isModelAnswerMode, setIsModelAnswerMode] = React.useState(false);
@@ -1708,7 +1716,8 @@ export const MarkingPageProvider = ({
           hasStashedData: Boolean(stashedData),
           stashType: stashedData?.type || null,
           fileCount: stashedData?.files?.length || (stashedData?.base64 ? 1 : 0),
-          paper: stashedData?.paper || null
+          paper: stashedData?.paper || null,
+          navType: getNavigationType()
         }, user.uid);
 
         if (stashedData) {

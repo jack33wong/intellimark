@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { getSupportMailto } from '../../config/support';
 import './LandingFooter.css';
 
 export const LandingFooter: React.FC = () => {
@@ -24,6 +25,9 @@ export const LandingFooter: React.FC = () => {
                         <Link to="/mark-aqa-gcse-maths-past-papers" className="footer-link">AQA Maths Marking</Link>
                         <Link to="/mark-edexcel-gcse-maths-past-papers" className="footer-link">Edexcel Maths Marking</Link>
                         <Link to="/mark-ocr-gcse-maths-past-papers" className="footer-link">OCR Maths Marking</Link>
+                        <Link to="/mark-aqa-gcse-english-language-past-papers" className="footer-link">AQA English Marking</Link>
+                        <Link to="/mark-edexcel-gcse-english-language-past-papers" className="footer-link">Edexcel English Marking</Link>
+                        <Link to="/mark-ocr-gcse-english-language-past-papers" className="footer-link">OCR English Marking</Link>
                     </div>
 
                     <div className="footer-column">
@@ -34,6 +38,7 @@ export const LandingFooter: React.FC = () => {
                     <div className="footer-column">
                         <span className="footer-label">Company</span>
                         <Link to="/about" className="footer-link">About Us</Link>
+                        <a href={getSupportMailto()} className="footer-link">Contact Support</a>
                         <Link to="/terms" className="footer-link">Terms</Link>
                         <Link to="/privacy" className="footer-link">Privacy</Link>
                     </div>

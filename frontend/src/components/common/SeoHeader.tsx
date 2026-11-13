@@ -32,15 +32,15 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
     const finalTitle = title || (examBoard
         ? `AI ${examBoard} Maths Marking | Instant GCSE ${year || ''} Feedback`
         : isHome
-            ? "AI GCSE Maths Marking & Feedback | Instant Past Paper Grading"
-            : "AI Maths Marking | Instant GCSE Past Paper Feedback & Grading");
+            ? "AI Exam Paper Marking & Feedback | GCSE & A-Level Maths, English & Any Subject"
+            : "AI Exam Marking | Instant Past Paper Feedback & Grading");
 
     // Generate optimized description
     const finalDescription = description || (examBoard
         ? `Upload your ${examBoard} ${year || ''} Maths past papers and get instant, AI-powered marking with step-by-step feedback.`
-        : "Upload GCSE Maths past papers and get instant, AI-powered marking with step-by-step feedback. Supporting Edexcel, AQA, and OCR.");
+        : "Mark GCSE & A-Level Maths and GCSE English Language past papers instantly with built-in AQA, Edexcel & OCR schemes—or upload any subject with its mark scheme.");
 
-    const keywords = "AI math marking, GCSE maths, mark my paper, Edexcel marking, AQA maths feedback, OCR maths marking, AI tutor";
+    const keywords = "AI exam marking, GCSE maths marking, GCSE English Language marking, mark my paper, Edexcel marking, AQA feedback, OCR marking, upload mark scheme, AI tutor";
 
     // SoftwareApplication Schema
     const schema = {
@@ -54,7 +54,7 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
             "price": "0",
             "priceCurrency": "GBP"
         },
-        "description": "AI tool for marking GCSE mathematics past papers with instant, human-level feedback."
+        "description": "AI tool for marking GCSE & A-Level Maths, GCSE English Language, and any subject past papers with an uploaded mark scheme."
     };
 
     return (
@@ -87,12 +87,12 @@ export const SeoHeader: React.FC<SeoHeaderProps> = ({
                     {JSON.stringify({
                         "@context": "https://schema.org",
                         "@type": "HowTo",
-                        "name": "How to mark your GCSE Maths paper using AI",
+                        "name": "How to mark your exam past paper using AI",
                         "step": [
                             {
                                 "@type": "HowToStep",
                                 "name": "Upload Work",
-                                "text": "Upload a photo or PDF of your completed GCSE Maths past paper."
+                                "text": "Upload a photo or PDF of your completed Maths, English Language, or any subject past paper (with its mark scheme)."
                             },
                             {
                                 "@type": "HowToStep",

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { fireAdsPurchaseConversion } from '../../utils/analytics';
+import { trackFunnelEvent, getNavigationType } from '../../utils/funnelTracker';
 
 // 1. Centralized Pricing Map (Source of Truth for Conversions)
 const PRICING_MAP: Record<string, Record<string, number>> = {
@@ -22,6 +23,66 @@ const AnalyticsTracker = () => {
     const location = useLocation();
     const { user, loading } = useAuth();
     const trackingAttempted = useRef(false);
+    const userIdRef = useRef<string | null>(null);
+    const lastTrackedPathRef = useRef<string | null>(null);
+    const errorCountRef = useRef(0);
+
+    useEffect(() => {
+        userIdRef.current = user?.uid || null;
+    }, [user?.uid]);
+
+    // Track route changes & initial page load navigation type
+    useEffect(() => {
+        const currentPath = location.pathname + location.search;
+        if (lastTrackedPathRef.current !== currentPath) {
+            const isFirst = lastTrackedPathRef.current === null;
+            lastTrackedPathRef.current = currentPath;
+            trackFunnelEvent(
+                'route_changed',
+                isFirst ? { navType: getNavigationType() } : {},
+                user?.uid || null
+            );
+        }
+    }, [location.pathname, location.search, user?.uid]);
+
+    // Track uncaught client JS errors, unhandled promise rejections, and tab hide/exit
+    useEffect(() => {
+        const handleError = (event: ErrorEvent) => {
+            if (errorCountRef.current >= 5) return;
+            errorCountRef.current += 1;
+            trackFunnelEvent('client_error', {
+                type: 'js_error',
+                message: (event.message || 'Unknown error').slice(0, 200),
+                source: event.filename ? `${event.filename.split('/').pop()}:${event.lineno}` : undefined,
+            }, userIdRef.current);
+        };
+
+        const handleRejection = (event: PromiseRejectionEvent) => {
+            if (errorCountRef.current >= 5) return;
+            errorCountRef.current += 1;
+            const reason = event.reason instanceof Error ? event.reason.message : String(event.reason || 'Unknown rejection');
+            trackFunnelEvent('client_error', {
+                type: 'unhandled_rejection',
+                message: reason.slice(0, 200),
+            }, userIdRef.current);
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                trackFunnelEvent('page_hidden', {}, userIdRef.current);
+            }
+        };
+
+        window.addEventListener('error', handleError);
+        window.addEventListener('unhandledrejection', handleRejection);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('error', handleError);
+            window.removeEventListener('unhandledrejection', handleRejection);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     useEffect(() => {
         // --- EXISTING FIREBASE TRACKING ---
