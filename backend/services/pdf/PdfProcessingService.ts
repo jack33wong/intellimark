@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
+import { UserFacingError } from '../../utils/UserFacingError.js';
 
 // Disable libvips internal operation cache in Cloud Run so native C++ memory is freed immediately after each page
 sharp.cache(false);
@@ -33,7 +34,45 @@ interface ConversionResult {
   width?: number;
 }
 
+const MAX_PIXEL_DIMENSION = 10000; // Well below GraphicsMagick's 65500px JPEG limit
+
 export class PdfProcessingService {
+  /**
+   * Rejects ultra-tall continuous-scroll PDF pages (e.g. Apple Notes / GoodNotes infinite-canvas exports)
+   * where fixed-height slicing cuts questions across boundaries and embedded handwriting is often too faint.
+   */
+  private static validateNoContinuousScrollPages(srcPdfDoc: PDFDocument): void {
+    const pages = srcPdfDoc.getPages();
+    if (pages.length === 0 || pages.length > 3) return;
+
+    const hasContinuousPage = pages.some((p) => {
+      const { width, height } = p.getSize();
+      return width > 0 && height / width > 2.5;
+    });
+
+    if (hasContinuousPage) {
+      throw new UserFacingError({
+        code: 'PDF_CONTINUOUS_PAGE',
+        category: 'user_fixable',
+        userMessage:
+          'We couldn\'t mark this file accurately because it is saved as a single continuous scrolling page, which makes questions and handwriting too faint or cut off.\n\n**How to fix:** Export it as separate pages (e.g. **Print → Save as PDF**), or upload clear screenshots of each page.',
+        technicalMessage: 'Continuous-scroll PDF page detected (aspect ratio > 2.5).'
+      });
+    }
+  }
+
+  /**
+   * Shared sharp optimization pipeline with mild contrast boost & sharpening for faint pencil/stylus strokes.
+   */
+  private static async optimizeRasterizedPage(filePath: string) {
+    return sharp(filePath)
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .grayscale()
+      .linear(1.12, -15)
+      .sharpen({ sigma: 0.8 })
+      .jpeg({ quality: 85 })
+      .toBuffer({ resolveWithObject: true });
+  }
 
   /**
    * Converts a PDF buffer into an array of standardized JPEG base64 data URLs.
@@ -98,14 +137,25 @@ export class PdfProcessingService {
         console.warn(`🔒 [PDF-REPAIR] Encrypted/owner-protected PDF detected (${pageCount} pages). Bypassing pdf-lib sub-PDF rewrite so Ghostscript can decrypt streams natively.`);
         srcPdfDoc = null;
       } else {
+        this.validateNoContinuousScrollPages(srcPdfDoc);
         console.log(`✨ [PDF-REPAIR] Validated ${pageCount} pages. Ready for chunked rasterization.`);
       }
     } catch (repairError: any) {
+      if (repairError instanceof UserFacingError) {
+        try {
+          if (tempDirPath) await fs.rm(tempDirPath, { recursive: true, force: true });
+        } catch (_) {}
+        throw repairError;
+      }
       if (repairError?.message?.includes('PDF_PAGE_LIMIT_EXCEEDED')) {
         try {
           if (tempDirPath) await fs.rm(tempDirPath, { recursive: true, force: true });
         } catch (_) {}
-        throw new Error(repairError.message.replace('PDF_PAGE_LIMIT_EXCEEDED: ', ''));
+        throw new UserFacingError({
+          code: 'PDF_PAGE_LIMIT_EXCEEDED',
+          category: 'user_fixable',
+          userMessage: repairError.message.replace('PDF_PAGE_LIMIT_EXCEEDED: ', '')
+        });
       }
       console.warn("⚠️ [PDF-REPAIR] pdf-lib load failed. Falling back to direct whole-file chunking.", repairError);
       srcPdfDoc = null;
@@ -115,8 +165,11 @@ export class PdfProcessingService {
     // - 1 to 6 pages: 260 DPI (~2158 x 3052 px)
     // - 7+ pages:     220 DPI (~1826 x 2582 px — ideal for Google Vision & Gemini OCR)
     const TARGET_DENSITY = pageCount <= 6 ? 260 : 220;
-    const targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
-    const targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
+    const rawTargetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
+    const rawTargetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
+    const dimScale = Math.min(1, MAX_PIXEL_DIMENSION / Math.max(rawTargetWidth, rawTargetHeight, 1));
+    const targetWidth = Math.max(1, Math.round(rawTargetWidth * dimScale));
+    const targetHeight = Math.max(1, Math.round(rawTargetHeight * dimScale));
 
     const CHUNK_SIZE = 6; // Process 6 pages per sub-PDF chunk (halves Ghostscript + pdf-lib overhead while keeping RAM bounded)
     const standardizedPages: StandardizedPage[] = [];
@@ -168,11 +221,7 @@ export class PdfProcessingService {
 
                   try {
                     // Single-pass sharp optimization + dimension extraction in parallel across chunk pages
-                    const { data: optimizedBuffer, info } = await sharp(res.path)
-                      .flatten({ background: { r: 255, g: 255, b: 255 } })
-                      .grayscale()
-                      .jpeg({ quality: 85 })
-                      .toBuffer({ resolveWithObject: true });
+                    const { data: optimizedBuffer, info } = await this.optimizeRasterizedPage(res.path);
 
                     // Immediately delete the rasterized page file from /tmp RAM disk
                     await fs.unlink(res.path).catch(() => {});
@@ -265,11 +314,7 @@ export class PdfProcessingService {
                     const globalPageIndex = chunkStart + j;
                     if (!res?.path) return null;
                     try {
-                      const { data: optimizedBuffer, info } = await sharp(res.path)
-                        .flatten({ background: { r: 255, g: 255, b: 255 } })
-                        .grayscale()
-                        .jpeg({ quality: 85 })
-                        .toBuffer({ resolveWithObject: true });
+                      const { data: optimizedBuffer, info } = await this.optimizeRasterizedPage(res.path);
                       await fs.unlink(res.path).catch(() => {});
                       if (info.width && info.height) {
                         return {
@@ -299,11 +344,7 @@ export class PdfProcessingService {
                 const res = results[i];
                 if (!res?.path) continue;
                 try {
-                  const { data: optimizedBuffer, info } = await sharp(res.path)
-                    .flatten({ background: { r: 255, g: 255, b: 255 } })
-                    .grayscale()
-                    .jpeg({ quality: 84 })
-                    .toBuffer({ resolveWithObject: true });
+                  const { data: optimizedBuffer, info } = await this.optimizeRasterizedPage(res.path);
 
                   await fs.unlink(res.path).catch(() => {});
 
@@ -335,11 +376,29 @@ export class PdfProcessingService {
       return standardizedPages;
 
     } catch (error) {
+      if (error instanceof UserFacingError) {
+        throw error;
+      }
+
       console.error('❌ [PDF Processing] PDF conversion failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (errorMessage.includes('Postscript delegate failed') || errorMessage.includes('gm identify')) {
-        throw new Error('PDF_UNREADABLE: The uploaded PDF is corrupted, password-protected, or in an unsupported format. Please open the file, select "Print to PDF", and upload the new version.');
+        throw new UserFacingError({
+          code: 'PDF_UNREADABLE',
+          category: 'user_fixable',
+          userMessage: 'We couldn\'t read this PDF because it appears corrupted, password-protected, or in an unsupported format.\n\n**How to fix:** Open the file, choose **Print → Save as PDF**, and upload the new file.',
+          technicalMessage: errorMessage
+        });
+      }
+
+      if (errorMessage.includes('Maximum supported image dimension')) {
+        throw new UserFacingError({
+          code: 'PDF_OVERSIZED_PAGE',
+          category: 'user_fixable',
+          userMessage: 'This PDF has an unusually large continuous page that couldn\'t be processed.\n\n**How to fix:** Open the file, choose **Print → Save as PDF** (as separate A4 pages), or upload screenshots of each page.',
+          technicalMessage: errorMessage
+        });
       }
 
       throw new Error(`PDF processing failed: ${errorMessage}`);

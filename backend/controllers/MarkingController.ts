@@ -8,6 +8,9 @@ import { GuestUsageService } from '../services/guestUsageService.js';
 import axios from 'axios';
 import https from 'https';
 import { AdminAlertService } from '../services/AdminAlertService.js';
+import { UserFacingError } from '../utils/UserFacingError.js';
+import { FirestoreService } from '../services/firestoreService.js';
+import { SessionManagementService } from '../services/sessionManagementService.js';
 
 // Global HTTPS Agent with Keep-Alive enabled
 const keepAliveAgent = new https.Agent({
@@ -321,7 +324,19 @@ export class MarkingController {
             console.error(`❌ [CONTROLLER] Marking request failed: ${error.message}`);
             
             const isCreditExhausted = error.message?.includes('exhausted your credits');
-            if (!isCreditExhausted) {
+            const isLegacyUserFixable =
+                error.message?.includes('PDF_UNREADABLE') ||
+                error.message?.includes('Postscript delegate failed') ||
+                error.message?.includes('exceeds the maximum limit') ||
+                error.message?.includes('limited to grading');
+
+            const shouldAlertAdmin = !isCreditExhausted && (
+                error instanceof UserFacingError
+                    ? error.shouldAlertAdmin
+                    : !isLegacyUserFixable
+            );
+
+            if (shouldAlertAdmin) {
                 void AdminAlertService.notifyCrash('MARKING', req, error);
             }
 
@@ -344,13 +359,110 @@ export class MarkingController {
             
             // Safely extract IDs to tie the response back to the user's UI
             const aiMessageId = req.body?.aiMessageId || `ai-${Date.now()}`;
-            const sessionId = req.body?.sessionId;
+            const resolvedSessionId = finalSessionId || sessionId;
 
-            // 🛡️ NEW: INTERCEPT UNREADABLE PDF ERRORS FOR THE UI
-            let displayMessage = `**Analysis Halted:**\n\n${error.message}`;
-            
-            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('Postscript delegate failed')) {
-                displayMessage = `**Analysis Halted: Unreadable PDF format** 🛑\n\nI couldn't read the text inside this PDF because it appears to be corrupted, password-protected, or saved in an unsupported format.\n\n**Quick Fix:**\n1. Open the file on your device.\n2. Select **Print** and choose **"Save as PDF"**.\n3. Upload that newly saved file!`;
+            // 2-Bucket non-technical error message for the UI
+            let displayMessage = `We couldn't complete marking your work due to a temporary technical issue on our end.\n\nPlease try again in a moment — **no credits were deducted**.`;
+
+            if (error instanceof UserFacingError) {
+                displayMessage = error.userMessage;
+            } else if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('Postscript delegate failed')) {
+                displayMessage = `We couldn't read this PDF because it appears corrupted, password-protected, or in an unsupported format.\n\n**How to fix:** Open the file, choose **Print → Save as PDF**, and upload the new file.`;
+            } else if (isLegacyUserFixable) {
+                displayMessage = error.message.replace(/^PDF_PAGE_LIMIT_EXCEEDED:\s*/i, '');
+            }
+
+            const userTimestamp = new Date().toISOString();
+            const aiTimestamp = new Date(Date.now() + 50).toISOString();
+            const aiErrorMessage = {
+                id: aiMessageId,
+                role: 'assistant',
+                content: displayMessage,
+                timestamp: aiTimestamp,
+                type: 'text',
+                isProcessing: false,
+                processingStats: {
+                    apiUsed: 'System Validation',
+                    modelUsed: 'Pre-flight Check'
+                }
+            };
+
+            // Persist the failed upload attempt (with PDF/image attachment metadata) + friendly error to Firestore
+            if (finalUserId && finalUserId !== 'anonymous' && resolvedSessionId) {
+                try {
+                    const uploadResult = await SessionManagementService.uploadOriginalFiles(
+                        files,
+                        finalUserId,
+                        resolvedSessionId,
+                        true
+                    );
+
+                    const pdfFiles = files
+                        .map((file, idx) => ({ file, idx }))
+                        .filter(entry => entry.file.mimetype === 'application/pdf');
+                    const isSinglePdf = files.length === 1 && pdfFiles.length === 1;
+                    const isMultiplePdfs = pdfFiles.length > 1 || (pdfFiles.length >= 1 && files.length > 1);
+
+                    let pdfContext: any = undefined;
+                    if (isSinglePdf) {
+                        pdfContext = {
+                            isMultiplePdfs: false,
+                            originalPdfLink: uploadResult.originalImageLinks[0] || null,
+                            originalFileName: files[0].originalname || 'document.pdf',
+                            fileSize: files[0].size || 0
+                        };
+                    } else if (isMultiplePdfs) {
+                        pdfContext = {
+                            isMultiplePdfs: true,
+                            pdfContexts: pdfFiles.map(({ file, idx }) => ({
+                                originalPdfLink: uploadResult.originalImageLinks[idx] || null,
+                                originalFileName: file.originalname || `document-${idx + 1}.pdf`,
+                                fileSize: file.size || 0
+                            }))
+                        };
+                    }
+
+                    const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+                        files,
+                        isSinglePdf,
+                        isMultiplePdfs,
+                        pdfContext
+                    );
+
+                    const userUploadMessage = SessionManagementService.createUserMessageForDatabase(
+                        {
+                            content: req.body?.customText || '',
+                            files,
+                            isPdf: isSinglePdf,
+                            isMultiplePdfs,
+                            customText: req.body?.customText,
+                            sessionId: resolvedSessionId,
+                            model: finalModel,
+                            pdfContext
+                        },
+                        structuredImageDataArray,
+                        structuredPdfContexts,
+                        uploadResult.originalImageLinks
+                    );
+                    userUploadMessage.timestamp = userTimestamp;
+
+                    const existingSession = await FirestoreService.getUnifiedSession(resolvedSessionId);
+                    if (existingSession) {
+                        await FirestoreService.addMessageToUnifiedSession(resolvedSessionId, userUploadMessage, 'Marking');
+                        await FirestoreService.addMessageToUnifiedSession(resolvedSessionId, aiErrorMessage, 'Marking');
+                    } else {
+                        await FirestoreService.createUnifiedSessionWithMessages({
+                            sessionId: resolvedSessionId,
+                            title: 'Upload Issue',
+                            userId: finalUserId,
+                            messageType: 'Marking',
+                            messages: [userUploadMessage, aiErrorMessage],
+                            usageMode: 'Marking'
+                        });
+                    }
+                } catch (persistErr) {
+                    console.error('⚠️ [CONTROLLER] Failed to persist error state to Firestore:', persistErr);
+                }
             }
 
             // 🛑 THE FIX: Wrap the error as a successful AI chat message so it renders gracefully in the UI
@@ -358,20 +470,9 @@ export class MarkingController {
                 type: 'complete',
                 result: {
                     success: true, // Force true so the frontend renders it instead of throwing a JS exception
-                    sessionId: sessionId,
-                    sessionTitle: "Document Rejected",
-                    aiMessage: {
-                        id: aiMessageId,
-                        role: 'assistant',
-                        content: displayMessage,
-                        timestamp: new Date().toISOString(),
-                        type: 'text',
-                        isProcessing: false,
-                        processingStats: {
-                            apiUsed: 'System Validation',
-                            modelUsed: 'Pre-flight Check'
-                        }
-                    }
+                    sessionId: resolvedSessionId,
+                    sessionTitle: "Upload Issue",
+                    aiMessage: aiErrorMessage
                 }
             });
 

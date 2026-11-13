@@ -1,6 +1,5 @@
 import type { ModelType } from '../../types/index.js';
 import crypto from 'crypto';
-import { getFirestore } from '../../config/firebase.js';
 import { ModelProvider } from '../../utils/ModelProvider.js';
 import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
@@ -40,7 +39,12 @@ export interface ClassificationResult {
 }
 
 export class ClassificationService {
-  private static classificationMemoryCache = new Map<string, Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>>();
+  private static classificationMemoryCache = new Map<
+    string,
+    { timestamp: number; data: Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }> }
+  >();
+  private static readonly MEMORY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes (same-session retries only)
+  private static readonly MEMORY_CACHE_MAX_ENTRIES = 15;
 
   private static computeImagesCacheKey(
     images: Array<{ imageData: string; pageIndex?: number }>,
@@ -97,29 +101,16 @@ export class ClassificationService {
     const pageMaps = Array.isArray(pageMapsOrVerbatim) ? pageMapsOrVerbatim : undefined;
     const isVerbatimProse = typeof pageMapsOrVerbatim === 'boolean' ? pageMapsOrVerbatim : Boolean(isVerbatimProseArg);
 
+    // Short-lived in-memory retry cache (no Firestore persistence)
     const validatedModelForCache = validateModel(model);
     const cacheKey = this.computeImagesCacheKey(images, String(validatedModelForCache), isVerbatimProse, Boolean(pageMaps));
-    const memCached = this.classificationMemoryCache.get(cacheKey);
-    if (memCached && memCached.length === images.length) {
-      console.log(`⚡ [CLASSIFICATION] In-memory cache HIT (${cacheKey.slice(0, 12)}) for ${images.length} page(s).`);
-      return JSON.parse(JSON.stringify(memCached));
-    }
-
-    try {
-      const db = getFirestore();
-      if (db) {
-        const docSnap = await db.collection('parsedClassificationCache').doc(cacheKey).get();
-        if (docSnap.exists) {
-          const data = docSnap.data();
-          if (Array.isArray(data?.results) && data.results.length === images.length) {
-            console.log(`⚡ [CLASSIFICATION] Firestore cache HIT (${cacheKey.slice(0, 12)}) for ${images.length} page(s).`);
-            this.classificationMemoryCache.set(cacheKey, data.results);
-            return JSON.parse(JSON.stringify(data.results));
-          }
-        }
+    const memEntry = this.classificationMemoryCache.get(cacheKey);
+    if (memEntry) {
+      if (Date.now() - memEntry.timestamp <= this.MEMORY_CACHE_TTL_MS && memEntry.data.length === images.length) {
+        console.log(`⚡ [CLASSIFICATION] In-memory retry cache HIT (${cacheKey.slice(0, 12)}) for ${images.length} page(s).`);
+        return JSON.parse(JSON.stringify(memEntry.data));
       }
-    } catch {
-      // Non-fatal: proceed to live classification
+      this.classificationMemoryCache.delete(cacheKey);
     }
 
     // Use heavy classification by default (positions required for marking)
@@ -851,28 +842,14 @@ ${pageHints}
       });
 
       if (results.length === images.length && !hasInvalidPlaceholder) {
-        if (this.classificationMemoryCache.size > 50) {
+        if (this.classificationMemoryCache.size >= this.MEMORY_CACHE_MAX_ENTRIES) {
           const oldestKey = this.classificationMemoryCache.keys().next().value;
           if (oldestKey) this.classificationMemoryCache.delete(oldestKey);
         }
-        const cleanCopy = JSON.parse(JSON.stringify(results));
-        this.classificationMemoryCache.set(cacheKey, cleanCopy);
-
-        try {
-          const db = getFirestore();
-          const payloadSize = Buffer.byteLength(JSON.stringify(cleanCopy), 'utf8');
-          if (db && payloadSize < 900_000) {
-            void db.collection('parsedClassificationCache').doc(cacheKey).set({
-              results: cleanCopy,
-              pageCount: images.length,
-              createdAt: new Date().toISOString()
-            }).catch(err => {
-              console.warn(`⚠️ [CLASSIFICATION] Firestore cache write failed (${cacheKey.slice(0, 12)}):`, err?.message || err);
-            });
-          } else if (db && payloadSize >= 900_000) {
-            console.warn(`⚠️ [CLASSIFICATION] Skipping Firestore cache write (${cacheKey.slice(0, 12)}): payload ${payloadSize} bytes exceeds 900KB safety limit.`);
-          }
-        } catch {}
+        this.classificationMemoryCache.set(cacheKey, {
+          timestamp: Date.now(),
+          data: JSON.parse(JSON.stringify(results))
+        });
       }
 
       return results;

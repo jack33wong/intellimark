@@ -82,6 +82,9 @@ export class ModelProvider {
       const { GoogleGenAI, HarmCategory, HarmBlockThreshold, ThinkingLevel } = await import('@google/genai');
       const ai = new GoogleGenAI({});
       
+      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'classification' || phase === 'performanceSummary';
+      const supportsCustomTemp = !modelName.includes('argon');
+
       let thinkingConfig: any = undefined;
       const maxTokens = plan.maxOutputTokens;
       
@@ -93,9 +96,6 @@ export class ModelProvider {
         thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
       }
 
-      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
-      const supportsCustomTemp = !modelName.includes('argon');
-
       const response = await ai.models.generateContent({
         model: modelName,
         contents: userPrompt,
@@ -103,7 +103,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topK: 1, seed: 42 } : {}),
+          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topP: 1, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -200,6 +200,9 @@ export class ModelProvider {
         };
       });
 
+      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'classification' || phase === 'performanceSummary';
+      const supportsCustomTemp = !modelName.includes('argon');
+
       let thinkingConfig: any = undefined;
       const maxTokens = plan.maxOutputTokens;
       
@@ -211,9 +214,6 @@ export class ModelProvider {
         thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
       }
 
-      const isLowTempPhase = forceJsonResponse || phase === 'marking' || phase === 'performanceSummary';
-      const supportsCustomTemp = !modelName.includes('argon');
-
       const response = await ai.models.generateContent({
         model: modelName,
         contents: [
@@ -224,7 +224,7 @@ export class ModelProvider {
           maxOutputTokens: forceJsonResponse ? Math.min(65536, maxTokens * 2) : maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" }),
           systemInstruction: systemPrompt,
-          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topK: 1, seed: 42 } : {}),
+          ...(isLowTempPhase && supportsCustomTemp ? { temperature: 0, topP: 1, topK: 1, seed: 42 } : {}),
           ...(thinkingConfig ? { thinkingConfig } : {}),
           safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },

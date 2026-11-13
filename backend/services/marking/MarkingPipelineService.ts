@@ -23,6 +23,7 @@ import {
 } from './MarkingHelpers.js';
 import { withPerformanceLogging } from '../../utils/markingRouterHelpers.js';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { UserFacingError } from '../../utils/UserFacingError.js';
 
 import type { MarkingSessionContext, QuestionSessionContext } from '../../types/sessionManagement.js';
 import { getBaseQuestionNumber, extractQuestionNumberFromFilename } from '../../utils/TextNormalizationUtils.js';
@@ -346,8 +347,8 @@ export class MarkingPipelineService {
                         } catch (error: any) {
                             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
                             
-                            // 🛡️ LET CUSTOM UNREADABLE ERRORS BUBBLE UP TO THE CONTROLLER
-                            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) {
+                            // 🛡️ LET CUSTOM UNREADABLE / USER-FACING ERRORS BUBBLE UP TO THE CONTROLLER
+                            if (error instanceof UserFacingError || error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) {
                                 throw error;
                             }
                             
@@ -593,7 +594,7 @@ export class MarkingPipelineService {
                             return pdfPages;
                         } catch (error: any) {
                             console.error(`❌ Failed to convert PDF in mixed batch (${file.originalname}):`, error);
-                            if (error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) throw error;
+                            if (error instanceof UserFacingError || error.message?.includes('PDF_UNREADABLE') || error.message?.includes('limited to grading') || error.message?.includes('exceeds the maximum limit')) throw error;
                             throw new Error(`Failed to process PDF "${file.originalname}".`);
                         }
                     } else if (file.mimetype?.startsWith('image/')) {

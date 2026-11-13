@@ -310,6 +310,8 @@ ${subQBreakdown}`;
 >    - \`eg\` indicates illustrative examples (not exhaustive) and \`oe\` means "or equivalent". Always accept mathematically equivalent expressions where an intermediate step has already been evaluated mentally or in rough work.`
             : '';
 
+        const tieBreakerRuleNum = hasProcessOrMethodMarks ? 5 : 3;
+
         return `
 > [INSTRUCTION]: You are the CHIEF EXAMINER.
 > 1. **MATCH**: Match the student's work strictly to the mark definitions below.
@@ -317,6 +319,10 @@ ${subQBreakdown}`;
 >    - You MUST respect the [MAX SCORE] for each sub-question.
 >    - **OVERFLOW CHECK:** If you find 4 valid marks, but [6a] only allows 2, you MUST check if the other 2 marks belong to [6b].
 >    - **DO NOT** lump all marks into the first bucket. Distribute them based on which sub-question they answer.${mathProcessRules}
+> ${tieBreakerRuleNum}. **DETERMINISTIC EXAMINER TIE-BREAKER RULES**:
+>    - **COMPARATIVE STATEMENTS VS. RAW DATA**: When a mark definition requires a comparison (e.g. "more X", "less Y", "higher/lower Z"), quoting bare values from a table/graph (e.g. "A = 12 and B = 10", or stating "the lowest is X") WITHOUT an explicit comparative direction between the two items ("A has more/higher X than B" or "B has less/lower X than A") earns \`B0\` unless \`[Examiner Notes]\` explicitly states "allow raw data".
+>    - **GRAPH PLOTTING & EXTRAPOLATION (\`[DRAWING]\`)**: Only award a graph plotting/extrapolation mark (e.g. "line extrapolated to X") if you can clearly see a student-drawn line/curve actually extending to the target value on the attached page image — do not infer extrapolation solely from a written number.
+>    - **PHONETIC SPELLING VS. CONFUSABLE TERMS**: Credit phonetic misspellings of scientific terms (e.g. "nucleas" -> nucleus, "defiency" -> deficiency, "hybreadoma" -> hybridoma) UNLESS the word is a confusable biological/chemical twin (e.g. chloroplast vs. chlorophyll, Mitosis vs. Meiosis, Glucagon vs. Glycogen, Alkane vs. Alkene) or \`[Examiner Notes]\` explicitly says "ignore / do not accept" that term.
 
 [OFFICIAL SCHEME]
 ${output.trim()}
