@@ -162,6 +162,11 @@
   color: var(--text-primary);
 }
 
+.tmua-pill.modified {
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+}
+
 .tmua-warning-banner {
   display: flex;
   align-items: center;

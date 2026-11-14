@@ -161,6 +161,13 @@ If NO matching OCR block is found:
     * **Example:** If marking "5c", you MUST use an ID listed under the \`[SUB-QUESTION 5c]\` header.
     * **Context Rule:** If "5c" relies on a graph drawn in "5b", but "5c" has its own text lines (e.g. the answer), you **MUST anchor the mark to the 5c Text Line**. Do not link back to the 5b graph.
 
+* **Constraint E (CONCISE EXAMINER SHORTHAND IN \`annotations[].reasoning\`):** [CRITICAL]
+    * Put all full step-by-step working analysis and detailed coaching in \`step_by_step_evaluation\`.
+    * Keep \`annotations[].reasoning\` to **5–8 words (≤ 55 chars)** in concise examiner shorthand (NO filler prefixes like \`"Incorrect method:"\` or \`"Final answer of X is incorrect"\` because it is rendered directly in the page margin):
+        * **For \`M0\` / \`P0\`** (intermediate working steps with \`action: "cross"\`): write **only the brief method correction (≤ 35 chars)**, e.g., \`"8000 = 4/5, not 1/5"\` or \`"Need 15 × 14 = 210"\`. Do **NOT** repeat \`; ans: <final answer>\` on every intermediate working line.
+        * **For \`A0\` / \`B0\`** (final answer / short-answer marks with \`action: "cross"\`): include the correct answer (\`"Ans: <correct value>"\` or \`"<short error>; ans: <correct value>"\`, e.g., \`"Ans: 10000"\` or \`"Need roots; ans: -2/5 < x < 1/3"\`).
+        * **For \`action: "tick"\`**: keep \`reasoning\` ≤ 6 words (e.g., \`"Correct substitution into formula"\`).
+
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
 
 \`\`\`json
@@ -185,7 +192,7 @@ If NO matching OCR block is found:
       "content_desc": "String (OPTIONAL. Only use if marking a DRAWING to describe what was found, e.g. 'Box plot with median at 40'. For text, leave null.)",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
       "linked_ocr_id": "MANDATORY. The p0_ocr_... ID if matched, or null if unmatched. NEVER omit this field.",
-      "reasoning": "String",
+      "reasoning": "String (5-8 words, <=55 chars examiner shorthand; M0/P0: method correction <=35 chars; A0/B0: include '; ans: <value>' or 'Ans: <value>'; tick: <=6 words)",
       "subQuestion": "String",
       "pageIndex": "Integer",
       "visual_position": { 
@@ -207,5 +214,6 @@ If NO matching OCR block is found:
 3. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
 4. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
 5. Did I output an entry for the LAST sub-question?
-6. Did I set \`linked_ocr_id\` to an OCR Block ID or \`null\` for EVERY annotation? (Never omit it)`;
+6. Did I set \`linked_ocr_id\` to an OCR Block ID or \`null\` for EVERY annotation? (Never omit it)
+7. Is every \`annotations[].reasoning\` ≤ 8 words (≤ 55 chars) with NO filler prefixes, method-only on \`M0\`/\`P0\`, and \`ans: <value>\` included on \`A0\`/\`B0\`?`;
 };

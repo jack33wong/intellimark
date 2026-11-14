@@ -600,4 +600,156 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
       console.error('❌ [ADMIN-ALERT] Unhandled error in notifyCrash:', unhandled);
     });
   }
+
+  /**
+   * Sends a completed per-request terminal log (.txt attachment + accuracy summary)
+   * to ADMIN_ALERT_EMAIL after a marking or re-marking request finishes.
+   * Controlled by MARKING_LOG_EMAIL_MODE = 'all' (default) | 'errors_only' | 'off'.
+   */
+  public static async notifyMarkingLog(params: {
+    submissionId: string;
+    sessionId?: string;
+    userId?: string;
+    userEmail?: string;
+    model?: string;
+    isRemark?: boolean;
+    result?: any;
+    error?: any;
+    logsText: string;
+    lineCount: number;
+    durationMs: number;
+    truncated?: boolean;
+  }): Promise<void> {
+    try {
+      const mode = (process.env.MARKING_LOG_EMAIL_MODE || 'all').toLowerCase();
+      if (mode === 'off' || mode === 'false') return;
+      if (mode === 'errors_only' && !params.error) return;
+
+      const transporter = this.getTransporter();
+      const adminEmail = process.env.ADMIN_ALERT_EMAIL;
+      if (!transporter || !adminEmail) return;
+
+      const {
+        submissionId,
+        sessionId,
+        userId = 'anonymous',
+        userEmail,
+        model = 'default',
+        isRemark = false,
+        result,
+        error,
+        logsText,
+        lineCount,
+        durationMs,
+        truncated = false,
+      } = params;
+
+      const durationSec = (durationMs / 1000).toFixed(1);
+      const status = error ? 'FAILED' : 'OK';
+
+      // Extract score & paper info safely from pipeline result
+      const scoreObj = result?.studentScore || result?.submissionResult?.studentScore;
+      const scoreText =
+        scoreObj?.scoreText ||
+        (typeof scoreObj?.awardedMarks === 'number' && typeof scoreObj?.totalMarks === 'number'
+          ? `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`
+          : 'N/A');
+
+      const detectedQ = result?.detectedQuestion || result?.submissionResult?.detectedQuestion;
+      const firstPaper = detectedQ?.examPapers?.[0];
+      const paperTitle =
+        result?.paperTitle ||
+        (firstPaper
+          ? [firstPaper.examBoard, firstPaper.subject, firstPaper.examCode].filter(Boolean).join(' ')
+          : '') ||
+        'General Marking';
+
+      // Extract per-question score breakdown if available
+      const qResults: any[] =
+        result?.markingResults ||
+        result?.questionResults ||
+        result?.submissionResult?.questionResults ||
+        [];
+      const questionBreakdown = Array.isArray(qResults)
+        ? qResults
+            .map((q: any) => {
+              const qNum = q?.questionNumber || q?.subQuestion || '?';
+              const awarded = q?.studentScore?.awardedMarks ?? q?.awardedMarks;
+              const total = q?.studentScore?.totalMarks ?? q?.totalMarks;
+              return typeof awarded === 'number' && typeof total === 'number'
+                ? `Q${qNum}: ${awarded}/${total}`
+                : `Q${qNum}`;
+            })
+            .filter(Boolean)
+        : [];
+
+      const safeSubId = String(submissionId || 'marking').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const subjectPrefix = isRemark ? '[REMARK LOG]' : '[MARKING LOG]';
+      const emailSubject = `${subjectPrefix} ${scoreText} | ${paperTitle} | ${status} | ${durationSec}s`;
+
+      const logLines = logsText ? logsText.split('\n') : [];
+      const tailPreview = logLines.slice(-30).join('\n');
+      const errorMessage = error ? (error?.message || String(error)) : '';
+
+      const escapeHtml = (str: string) =>
+        str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: adminEmail,
+        subject: emailSubject,
+        text: [
+          `${subjectPrefix} Accuracy Review`,
+          `Status: ${status}${errorMessage ? ` (${errorMessage})` : ''}`,
+          `Submission ID: ${submissionId}`,
+          `Session ID: ${sessionId || result?.sessionId || 'N/A'}`,
+          `User: ${userEmail || userId}`,
+          `Model: ${model}`,
+          `Paper: ${paperTitle}`,
+          `Score: ${scoreText}`,
+          `Duration: ${durationSec}s | Log Lines: ${lineCount}${truncated ? ' (truncated at 2MB/5000 lines)' : ''}`,
+          questionBreakdown.length > 0 ? `Questions: ${questionBreakdown.join(', ')}` : '',
+          '',
+          '--- Last 30 Log Lines (full log attached) ---',
+          tailPreview,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 780px; margin: 0 auto; color: #222; line-height: 1.5;">
+  <div style="background: ${error ? '#f8d7da' : '#e8f5e9'}; border-left: 5px solid ${error ? '#dc3545' : '#2e7d32'}; padding: 14px 16px; border-radius: 4px; margin-bottom: 16px;">
+    <h2 style="margin: 0 0 4px 0; font-size: 18px; color: ${error ? '#721c24' : '#1b5e20'};">
+      ${error ? '❌' : '✅'} ${subjectPrefix} ${escapeHtml(scoreText)} — ${escapeHtml(paperTitle)}
+    </h2>
+    <div style="font-size: 13px; color: #444;">
+      Status: <strong>${status}</strong> | Duration: <strong>${durationSec}s</strong> | Captured Lines: <strong>${lineCount}</strong>${truncated ? ' <em>(truncated)</em>' : ''}
+    </div>
+    ${errorMessage ? `<div style="margin-top: 6px; color: #721c24; font-weight: 600;">Error: ${escapeHtml(errorMessage)}</div>` : ''}
+  </div>
+
+  <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
+    <tr><td style="padding: 5px 0; font-weight: bold; width: 130px;">Submission ID:</td><td><code>${escapeHtml(submissionId)}</code></td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">Session ID:</td><td><code>${escapeHtml(String(sessionId || result?.sessionId || 'N/A'))}</code></td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">User:</td><td><code>${escapeHtml(userId)}</code> ${userEmail ? `(${escapeHtml(userEmail)})` : ''}</td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">Model:</td><td><code>${escapeHtml(model)}</code></td></tr>
+    ${questionBreakdown.length > 0 ? `<tr><td style="padding: 5px 0; font-weight: bold; vertical-align: top;">Breakdown:</td><td>${escapeHtml(questionBreakdown.join('  |  '))}</td></tr>` : ''}
+  </table>
+
+  <h3 style="font-size: 14px; margin: 16px 0 6px 0;">Tail Preview (Last 30 Lines — Full Terminal Log Attached)</h3>
+  <pre style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-size: 11px; overflow-x: auto; white-space: pre-wrap;">${escapeHtml(tailPreview || '(No log lines captured)')}</pre>
+</div>`,
+        attachments: [
+          {
+            filename: `marking-log-${safeSubId}.txt`,
+            content: logsText || '(No log output captured)',
+            contentType: 'text/plain; charset=utf-8',
+          },
+        ],
+      });
+
+      console.log(`📧 [ADMIN-ALERT] Marking log email sent to ${adminEmail} (${lineCount} lines, ${durationSec}s)`);
+    } catch (emailErr) {
+      console.error('❌ [ADMIN-ALERT] Failed to send marking log email:', emailErr);
+    }
+  }
 }

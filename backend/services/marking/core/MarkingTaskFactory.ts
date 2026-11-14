@@ -666,6 +666,54 @@ export class MarkingTaskFactory {
                     }
                 }
 
+                // Pass B2: Parent-zone & pre-sub-question header fallback for parentHeaderMarks
+                // (Handles cases where masterLandmarks claimed _associatedQuestion on the parent header block)
+                if (parentHeaderMarks === 0) {
+                    const parentZones = globalZones?.[baseQNum] || [];
+                    for (const z of parentZones) {
+                        const zoneBlocks = allOcrBlocks.filter(
+                            (b: any) => b.pageIndex === z.pageIndex &&
+                                (b.coordinates?.y ?? 0) >= (z.startY ?? 0) - 15 &&
+                                (b.coordinates?.y ?? 0) <= (z.endY ?? 99999) + 15
+                        );
+                        for (const zb of zoneBlocks) {
+                            const pm = String(zb.text || '').match(markBracketRegex);
+                            const parsedPM = pm ? parseInt(pm[1] || pm[2] || pm[3], 10) : 0;
+                            if (parsedPM > 0 && parsedPM <= 30) {
+                                parentHeaderMarks = parsedPM;
+                                break;
+                            }
+                        }
+                        if (parentHeaderMarks > 0) break;
+                    }
+                }
+                if (parentHeaderMarks === 0 && group.sourceImageIndices?.length > 0) {
+                    const firstPageIdx = group.sourceImageIndices[0];
+                    let minSubStartY = Infinity;
+                    for (const subLbl of subLabelsForQ) {
+                        const zones = globalZones?.[subLbl] || [];
+                        for (const z of zones) {
+                            if (z.pageIndex === firstPageIdx && typeof z.startY === 'number' && z.startY < minSubStartY) {
+                                minSubStartY = z.startY;
+                            }
+                        }
+                    }
+                    const preSubBlocks = allOcrBlocks.filter(
+                        (b: any) => b.pageIndex === firstPageIdx && (b.coordinates?.y ?? 0) < minSubStartY
+                    );
+                    for (const pb of preSubBlocks) {
+                        const pm = String(pb.text || '').match(markBracketRegex);
+                        const parsedPM = pm ? parseInt(pm[1] || pm[2] || pm[3], 10) : 0;
+                        if (parsedPM > 0 && parsedPM <= 30) {
+                            parentHeaderMarks = parsedPM;
+                            break;
+                        }
+                    }
+                }
+                if (parentHeaderMarks === 0) {
+                    parentHeaderMarks = Number((group as any).mainQuestion?.marks || (group as any).mainQuestion?.totalMarks || 0);
+                }
+
                 // Pass C: Equal-Split Parent Budget Fallback (e.g. English Q1 "[ 4 marks ]" across 4 MCQ sub-questions 1.1–1.4)
                 const distinctFullSubLabels = Array.from(new Set(
                     subLabelsForQ.filter(lbl => /^\d+(\.[a-z0-9]+|[a-z]+)$/i.test(lbl))

@@ -72,7 +72,7 @@ When a question or sub-question has \`[LEVEL DESCRIPTORS]\` or \`[PARADIGM: LEVE
    - **CASE B — Multi-Part Composite Question** (e.g. \`Q1\` has point-based \`1a\`, \`1b\` AND a 6-mark Level-of-Response sub-question \`1c\`):
      * Set \`rubricEvaluation: null\` so the pipeline sums \`1a + 1b + 1c\` additively without overwriting \`1a\` and \`1b\`!
      * For the Level-of-Response sub-question (\`1c\`), after determining its holistic Level score *K* (e.g. Level 2 = 4/6 marks), emit atomic \`B1\` ticks across the valid points in \`1c\` (or a single \`B{K}\` code such as \`"B4"\` on the concluding line of \`1c\`) so that the sum of marks emitted for \`1c\` equals **exactly *K***!
-     * In \`reasoning\` for \`1c\`, explicitly state the awarded Level band, why it achieved that band, and what was needed for the next Level (e.g., \`"[1c] Level 2 (4/6 marks): Clear explanation of X and Y; to reach Level 3 (5-6m), link the conclusion to data in Figure 1."\`).
+     * In \`step_by_step_evaluation\` (and \`overallFeedback\`) for \`1c\`, explicitly state the awarded Level band, why it achieved that band, and what was needed for the next Level; keep \`annotations[].reasoning\` for \`1c\` ≤ 8 words (≤ 55 chars) in concise examiner shorthand (e.g., \`"L2 (4/6): need link to Fig 1"\`).
 
 ---
 
@@ -84,7 +84,10 @@ When a question or sub-question has \`[LEVEL DESCRIPTORS]\` or \`[PARADIGM: LEVE
      * Otherwise, link to the nearest relevant \`RAW OCR BLOCKS\` ID (such as the prompt line \`"Plot this data on Figure 1"\`, table row, or diagram caption) with \`ocr_match_status: "MATCHED"\` so the mark is anchored directly beside that prompt/diagram on the page.
 2. **Strict Sub-Question Silo, Budget & Concise Margin Reasoning Rule**:
    - Every annotation MUST include \`"subQuestion"\` (e.g. \`"1a"\`, \`"1b"\`, \`"1c"\`).
-   - Keep \`annotations[].reasoning\` concise (max 6-8 words, e.g. \`"Ash blocks solar radiation causing cooling"\` or \`"Need GNI/GDP per capita"\`) because it is rendered directly in the page margin; put detailed multi-sentence reasoning in \`step_by_step_evaluation\`.
+   - Constrain \`annotations[].reasoning\` to **5–8 words (≤ 55 chars)** in concise examiner shorthand (no filler like \`"Incorrect method:"\` or \`"Final answer of X is incorrect"\`) because it is rendered directly in the page margin; put full step-by-step working/LoR coaching in \`step_by_step_evaluation\` (or \`rubricEvaluation\`):
+     * For \`M0\` / \`P0\` (intermediate working steps with \`action: "cross"\`): show only the brief method correction (≤ 35 chars, e.g., \`"8000 = 4/5, not 1/5"\` or \`"Need 15 × 14 = 210"\`), without repeating \`; ans: <final answer>\` on every line.
+     * For \`A0\` / \`B0\` (final answer / short-answer marks with \`action: "cross"\`): include the historical/scientific/numerical correct answer (\`"Ans: <correct value>"\` or \`"<short error>; ans: <correct value>"\`, e.g., \`"Ans: 10000"\` or \`"Need GNI/GDP per capita; ans: GDP"\`).
+     * For \`action: "tick"\`: keep \`reasoning\` ≤ 6 words (e.g., \`"Ash blocks solar radiation"\`).
    - Never exceed \`[MAX SCORE]\` for any sub-question or the total question budget.
 3. **1-to-1 Line & OCR Block Linking**:
    - Every step in \`STUDENT WORK (CLEAN STEPS)\` MUST have an entry in \`step_by_step_evaluation\`.

@@ -1531,6 +1531,8 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   left: 0;
   right: 0;
   bottom: 0;
+  height: 100vh;
+  height: 100dvh;
   z-index: 20000;
   /* Above everything including loading spinner */
   background: var(--background-gray-main);

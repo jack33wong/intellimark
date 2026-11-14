@@ -986,12 +986,16 @@ export class SessionManagementService {
         };
       });
 
-      // Extract metadata from first detection result if available
+      // Extract metadata from first valid past paper detection result if available (even if one question is modified)
       const isModifiedPaper = aiData.detectionResults?.some((r: any) => r.detectionResult?.isModifiedQuestion === true) || false;
-      const firstDetection = (!isModifiedPaper && aiData.detectionResults?.[0]?.detectionResult?.match) || {};
-      const firstQuestionMetadata = aiData.detectionResults?.[0]?.question || {};
+      const validDetectionEntry = aiData.detectionResults?.find((r: any) => {
+        const m = r?.detectionResult?.match;
+        return r?.detectionResult?.found === true && m?.board && m.board !== 'Unknown' && m.board !== 'N/A' && m?.paperCode !== 'Generic Question';
+      });
+      const firstDetection = validDetectionEntry?.detectionResult?.match || aiData.detectionResults?.[0]?.detectionResult?.match || {};
+      const firstQuestionMetadata = validDetectionEntry?.question || aiData.detectionResults?.[0]?.question || {};
       
-      const isAnyQuestionFound = !isModifiedPaper && (aiData.detectionResults?.some((r: any) => r.detectionResult?.found === true) || false);
+      const isAnyQuestionFound = aiData.detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
 
       detectedQuestion = {
         found: isAnyQuestionFound,
@@ -1000,13 +1004,13 @@ export class SessionManagementService {
         multipleQuestions: questions.length > 1,
         totalMarks: syncTotal,
         examPapers: [{
-          examBoard: isModifiedPaper ? '' : (firstDetection.board || ''),
-          examCode: isModifiedPaper ? '' : (firstDetection.paperCode || ''),
-          examSeries: isModifiedPaper ? '' : (firstDetection.examSeries || firstDetection.year || ''),
-          tier: isModifiedPaper ? '' : (firstDetection.tier || ''),
+          examBoard: firstDetection.board || '',
+          examCode: firstDetection.paperCode || '',
+          examSeries: firstDetection.examSeries || firstDetection.year || '',
+          tier: firstDetection.tier || '',
           subject: firstDetection.subject || firstDetection.qualification || '',
           qualification: firstDetection.qualification || firstDetection.level || '',
-          paperTitle: isModifiedPaper ? 'Modified / Custom Paper' : (firstDetection.paperTitle || firstQuestionMetadata.paperTitle || "Annotated Paper"),
+          paperTitle: firstDetection.paperTitle || firstQuestionMetadata.paperTitle || (isModifiedPaper ? 'Modified Paper' : 'Annotated Paper'),
           totalMarks: syncTotal,
           questions: questions
         }]
@@ -1039,22 +1043,24 @@ export class SessionManagementService {
     } else {
       const firstExamPaper = detectedQuestion?.examPapers?.[0];
       const isPastPaper = firstExamPaper && firstExamPaper.examBoard && firstExamPaper.examBoard !== 'Unknown' && detectedQuestion?.found === true;
+      const isModifiedPaper = Boolean(detectedQuestion?.isModifiedPaper);
 
       const examInfo = firstExamPaper ? {
         examBoard: firstExamPaper.examBoard,
         examSeries: firstExamPaper.examSeries || (firstExamPaper as any).year,
         subject: firstExamPaper.subject,
         examCode: firstExamPaper.examCode,
-        tier: firstExamPaper.tier
+        tier: firstExamPaper.tier,
+        ...(isModifiedPaper ? { isModified: true } : {})
       } : undefined;
 
       overallPerformanceSummary = await this.generateMasterPerformanceSummary(
         allQuestionResults, 
         actualModel, 
         aiData.usageTracker,
-        isPastPaper ? grade : undefined,
-        isPastPaper ? predictedGrade : undefined,
-        isPastPaper ? gradeBoundaries : undefined,
+        isPastPaper && !isModifiedPaper ? grade : undefined,
+        isPastPaper && !isModifiedPaper ? predictedGrade : undefined,
+        isPastPaper && !isModifiedPaper ? gradeBoundaries : undefined,
         studentScore,
         isPastPaper ? examInfo : undefined
       );
@@ -1427,7 +1433,7 @@ export class SessionManagementService {
       // When grade boundaries are not in the database (e.g. Biology, Chemistry, Physics, History, Geography, or a new series),
       // use the LLM's estimated boundaries from `aiParsed.estimatedGrading.boundaries` (or a calibrated UK exam board scale)
       // and deterministically compute the student's achieved grade from `awardedMarks`.
-      if (!resolvedBoundaries && totalMarks > 0 && (examInfo || allQuestionResults.length >= 3)) {
+      if (!examInfo?.isModified && !resolvedBoundaries && totalMarks > 0 && (examInfo || allQuestionResults.length >= 3)) {
         const rawEst = aiParsed?.estimatedGrading?.boundaries;
         const sanitizedEst: Record<string, number> = {};
         if (rawEst && typeof rawEst === 'object') {

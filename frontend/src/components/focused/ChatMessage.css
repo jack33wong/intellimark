@@ -944,6 +944,13 @@ html.dark .guest-mode-floating-banner {
   font-weight: 700;
 }
 
+.markdown-math-renderer .tmua-pill.modified,
+.tmua-pill.modified {
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
 
 /* Mobile Friendly Padding Adjustments */
 @media (max-width: 640px) {

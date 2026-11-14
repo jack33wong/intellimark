@@ -332,6 +332,47 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
   // NOTE: All reactive effects for syncing between activeQuestionId and activeImageIndex have been REMOVED.
 
+  // Prioritize lowest-scoring / mistake question when multiple questions share a page
+  const sortQuestionsByMistakePriority = useCallback((questions: any[]) => {
+    return [...questions].sort((a, b) => {
+      const aMistake = a.hasResults && a.awardedMarks !== null && a.totalMarks > 0 && a.awardedMarks < a.totalMarks ? 0 : 1;
+      const bMistake = b.hasResults && b.awardedMarks !== null && b.totalMarks > 0 && b.awardedMarks < b.totalMarks ? 0 : 1;
+      if (aMistake !== bMistake) return aMistake - bMistake;
+      const aRatio = (a.hasResults && a.awardedMarks !== null && a.totalMarks > 0) ? a.awardedMarks / a.totalMarks : 1;
+      const bRatio = (b.hasResults && b.awardedMarks !== null && b.totalMarks > 0) ? b.awardedMarks / b.totalMarks : 1;
+      return aRatio - bRatio;
+    });
+  }, []);
+
+  const lostMarkQuestions = useMemo(() => {
+    return groupedQuestions.filter(
+      q => q.hasResults && q.awardedMarks !== null && q.totalMarks > 0 && q.awardedMarks < q.totalMarks
+    );
+  }, [groupedQuestions]);
+
+  const lostMarkPageIndices = useMemo(() => {
+    if (!splitModeImages || splitModeImages.length === 0) return [];
+    const mistakeRawIndices = new Set<number>();
+    lostMarkQuestions.forEach(q => {
+      if (Array.isArray(q.allImageIndices) && q.allImageIndices.length > 0) {
+        q.allImageIndices.forEach(idx => mistakeRawIndices.add(idx));
+      } else if (typeof q.sourceImageIndex === 'number') {
+        mistakeRawIndices.add(q.sourceImageIndex);
+      }
+    });
+
+    const viewerIndices: number[] = [];
+    splitModeImages.forEach((img: any, idx: number) => {
+      const isAnnotated = img.messageRole === 'assistant' || img.messageType === 'marking_annotated';
+      if (!isAnnotated) return;
+      const pageIdx = img.pageIndex ?? idx;
+      if (mistakeRawIndices.has(pageIdx) || mistakeRawIndices.has(idx)) {
+        viewerIndices.push(idx);
+      }
+    });
+    return Array.from(new Set(viewerIndices)).sort((a, b) => a - b);
+  }, [lostMarkQuestions, splitModeImages]);
+
   // Memoize enriched images to provide a stable reference to the ImageViewer
   const enrichedSplitModeImages = React.useMemo(() => {
     if (!splitModeImages) return null;
@@ -341,8 +382,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
       const isAnnotated = img.messageRole === 'assistant' || img.messageType === 'marking_annotated';
 
       if (isAnnotated) {
-        const match = groupedQuestions.find(g => g.allImageIndices.includes(idx));
-        if (match) {
+        const pageIdx = img.pageIndex ?? idx;
+        const matches = groupedQuestions.filter(
+          g => g.allImageIndices.includes(pageIdx) || g.allImageIndices.includes(idx)
+        );
+        if (matches.length > 0) {
+          const match = sortQuestionsByMistakePriority(matches)[0];
           const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
           return {
             ...img,
@@ -356,12 +401,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
         badgeText: undefined // Ensure no badge for originals
       };
     });
-  }, [splitModeImages, groupedQuestions, getGroupColor]);
+  }, [splitModeImages, groupedQuestions, getGroupColor, sortQuestionsByMistakePriority]);
 
   // Enhanced Split Mode Entry
   const enterSplitModeEnriched = useCallback((images: any[], index: number, isGlobal?: boolean) => {
+    const img = images?.[index];
+    const pageIdx = img?.pageIndex ?? index;
     // Determine the question associated with this image index to keep the Ribbon in sync
-    const match = groupedQuestions.find(g => g.allImageIndices.includes(index));
+    const matches = groupedQuestions.filter(
+      g => g.allImageIndices.includes(pageIdx) || g.allImageIndices.includes(index)
+    );
+    const match = matches.length > 0 ? sortQuestionsByMistakePriority(matches)[0] : null;
     if (match && activeQuestionId !== match.questionNumber) {
       setActiveQuestionId(match.questionNumber);
     }
@@ -382,7 +432,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     } else if (activeImageIndex !== index) {
       setActiveImageIndex(index);
     }
-  }, [splitModeImages, enterSplitMode, activeImageIndex, setActiveImageIndex, groupedQuestions, activeQuestionId, setActiveQuestionId]);
+  }, [splitModeImages, enterSplitMode, activeImageIndex, setActiveImageIndex, groupedQuestions, activeQuestionId, setActiveQuestionId, sortQuestionsByMistakePriority]);
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
@@ -414,14 +464,99 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   const handleImageChange = (index: number) => {
     if (activeImageIndex === index) return;
 
-    // Find the question that maps to this page index
-    const question = groupedQuestions.find(q => q.allImageIndices.includes(index));
-    if (question) {
+    const img = splitModeImages?.[index];
+    const pageIdx = img?.pageIndex ?? index;
+    // Find the question that maps to this page index (prioritizing mistakes when multiple share a page)
+    const matches = groupedQuestions.filter(
+      q => q.allImageIndices.includes(pageIdx) || q.allImageIndices.includes(index)
+    );
+    if (matches.length > 0) {
+      const question = sortQuestionsByMistakePriority(matches)[0];
       navigateToQuestion(question.questionNumber, index, 'image');
     } else {
       setActiveImageIndex(index);
     }
   };
+
+  const activeQuestionMeta = useMemo(() => {
+    const currentIdx = activeImageIndex || 0;
+    const img = splitModeImages?.[currentIdx];
+    const pageIdx = img?.pageIndex ?? currentIdx;
+
+    if (activeQuestionId) {
+      const byActiveId = groupedQuestions.find(
+        q => String(q.questionNumber).toLowerCase() === String(activeQuestionId).toLowerCase()
+      );
+      if (byActiveId && (byActiveId.allImageIndices.includes(pageIdx) || byActiveId.allImageIndices.includes(currentIdx))) {
+        return {
+          questionNumber: String(byActiveId.questionNumber),
+          awardedMarks: byActiveId.awardedMarks,
+          totalMarks: byActiveId.totalMarks
+        };
+      }
+    }
+
+    const pageMatches = groupedQuestions.filter(
+      q => q.allImageIndices.includes(pageIdx) || q.allImageIndices.includes(currentIdx)
+    );
+    if (pageMatches.length > 0) {
+      const prioritized = sortQuestionsByMistakePriority(pageMatches)[0];
+      return {
+        questionNumber: String(prioritized.questionNumber),
+        awardedMarks: prioritized.awardedMarks,
+        totalMarks: prioritized.totalMarks
+      };
+    }
+
+    if (activeQuestionId) {
+      const byActiveId = groupedQuestions.find(
+        q => String(q.questionNumber).toLowerCase() === String(activeQuestionId).toLowerCase()
+      );
+      if (byActiveId) {
+        return {
+          questionNumber: String(byActiveId.questionNumber),
+          awardedMarks: byActiveId.awardedMarks,
+          totalMarks: byActiveId.totalMarks
+        };
+      }
+    }
+
+    return null;
+  }, [activeQuestionId, activeImageIndex, splitModeImages, groupedQuestions, sortQuestionsByMistakePriority]);
+
+  const handleViewerSendFollowUp = useCallback(async (rawText: string, questionNumber?: string | null) => {
+    const trimmed = rawText.trim();
+    if (!trimmed || !onSendMessage) return;
+    const targetQ = questionNumber || activeQuestionMeta?.questionNumber || activeQuestionId || null;
+    if (targetQ) {
+      setActiveQuestionId(String(targetQ));
+    }
+    const mentionsQuestion = /(?:question|q)\s*\d+/i.test(trimmed);
+    const formattedPrompt = targetQ && !mentionsQuestion
+      ? `[Question ${targetQ}] ${trimmed}`
+      : trimmed;
+    await onSendMessage(formattedPrompt);
+  }, [onSendMessage, activeQuestionMeta, activeQuestionId, setActiveQuestionId]);
+
+  const latestFollowUpResponse = useMemo(() => {
+    if (!chatMessages || chatMessages.length === 0) return null;
+    const followUpAssistantMsgs = chatMessages.filter(
+      (m: any) =>
+        m.role === 'assistant' &&
+        !m.markingContext &&
+        m.type !== 'marking_annotated' &&
+        !m.performanceSummary &&
+        !m.studentScore &&
+        ensureStringContent(m.content).trim().length > 0
+    );
+    if (followUpAssistantMsgs.length === 0) return null;
+    const latest = followUpAssistantMsgs[followUpAssistantMsgs.length - 1] as any;
+    return {
+      id: String(latest.id || followUpAssistantMsgs.length),
+      questionNumber: latest.contextQuestionId ? String(latest.contextQuestionId) : (activeQuestionMeta?.questionNumber || null),
+      content: ensureStringContent(latest.content)
+    };
+  }, [chatMessages, ensureStringContent, activeQuestionMeta]);
 
   // Common Chat Content Render Function to reuse in both modes
   const renderChatContent = () => {
@@ -568,8 +703,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     );
   };
 
-  // Determine layout class
-  const isMobile = window.innerWidth <= 768;
+  // Responsive mobile media query listener
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(max-width: 768px)').matches
+      : typeof window !== 'undefined' && window.innerWidth <= 768
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(max-width: 768px)');
+    const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      setIsMobile(e.matches);
+    };
+    handleMediaChange(mql);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handleMediaChange);
+      return () => mql.removeEventListener('change', handleMediaChange);
+    } else {
+      mql.addListener(handleMediaChange);
+      return () => mql.removeListener(handleMediaChange);
+    }
+  }, []);
+
   const hasImages = splitModeImages && splitModeImages.length > 0;
   
   // 1. Lift Question Mode evaluation
@@ -606,6 +762,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
               onClose={exitSplitMode}
               isOpen={true}
               onImageChange={handleImageChange}
+              lostMarkPageIndices={lostMarkPageIndices}
+              activeQuestionMeta={activeQuestionMeta}
+              isMobile={false}
+              onSendFollowUpMessage={!isQuestionMode ? handleViewerSendFollowUp : undefined}
+              isProcessingFollowUp={isProcessing || isAIThinking}
+              MarkdownRenderer={MarkdownMathRenderer}
             />
           </div>
         </div>
@@ -623,6 +785,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                 onClose={exitSplitMode}
                 isOpen={true}
                 onImageChange={handleImageChange}
+                lostMarkPageIndices={lostMarkPageIndices}
+                activeQuestionMeta={activeQuestionMeta}
+                isMobile={isMobile}
+                onSendFollowUpMessage={!isQuestionMode ? handleViewerSendFollowUp : undefined}
+                isProcessingFollowUp={isProcessing || isAIThinking}
+                latestFollowUpResponse={latestFollowUpResponse}
+                MarkdownRenderer={MarkdownMathRenderer}
               />
             </div>
           )}

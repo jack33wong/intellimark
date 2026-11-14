@@ -1470,6 +1470,7 @@ export interface components {
         DetectedQuestion: {
             // Core flags
             found: boolean;
+            isModifiedPaper?: boolean;
             multipleExamPapers: boolean;
             multipleQuestions: boolean;
 

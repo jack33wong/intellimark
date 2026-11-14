@@ -8,6 +8,7 @@ import { GuestUsageService } from '../services/guestUsageService.js';
 import axios from 'axios';
 import https from 'https';
 import { AdminAlertService } from '../services/AdminAlertService.js';
+import { runWithLogCapture } from '../utils/RequestLogCapture.js';
 import { UserFacingError } from '../utils/UserFacingError.js';
 import { FirestoreService } from '../services/firestoreService.js';
 import { SessionManagementService } from '../services/sessionManagementService.js';
@@ -70,16 +71,47 @@ export class MarkingController {
                 sendSseUpdate(res, data);
             };
 
-            const result = await MarkingPipelineService.executeRemarkPipeline(
-                req,
-                options,
-                progressCallback,
-                usageTracker
-            );
+            let remarkResult: any;
+            let remarkError: any;
+            let capturedRemarkLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
+
+            const result = await runWithLogCapture(
+                `remark-${sessionId}`,
+                () => MarkingPipelineService.executeRemarkPipeline(
+                    req,
+                    options,
+                    progressCallback,
+                    usageTracker
+                ),
+                (captured) => {
+                    capturedRemarkLogs = captured;
+                }
+            ).catch((err) => {
+                remarkError = err;
+                throw err;
+            });
+            remarkResult = result;
 
             if (result && !completeEventSent) {
                 sendSseUpdate(res, { type: 'complete', result });
                 completeEventSent = true;
+            }
+
+            if (capturedRemarkLogs) {
+                await Promise.race([
+                    AdminAlertService.notifyMarkingLog({
+                        submissionId: `remark-${sessionId}`,
+                        sessionId,
+                        userId: (req as any).user?.uid,
+                        userEmail: (req as any).user?.email,
+                        model: requestedModel,
+                        isRemark: true,
+                        result: remarkResult,
+                        error: remarkError,
+                        ...capturedRemarkLogs,
+                    }),
+                    new Promise(resolve => setTimeout(resolve, 2500)),
+                ]);
             }
 
             res.end();
@@ -282,13 +314,21 @@ export class MarkingController {
                 sendSseUpdate(res, data);
             };
 
-            const result = await MarkingPipelineService.executePipeline(
-                req,
-                files,
+            let capturedMarkingLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
+
+            const result = await runWithLogCapture(
                 submissionId,
-                options,
-                progressCallback,
-                usageTracker
+                () => MarkingPipelineService.executePipeline(
+                    req,
+                    files,
+                    submissionId,
+                    options,
+                    progressCallback,
+                    usageTracker
+                ),
+                (captured) => {
+                    capturedMarkingLogs = captured;
+                }
             );
             
             if (result?.sessionId) {
@@ -316,6 +356,22 @@ export class MarkingController {
             // --- NEW: Increment Guest Usage ---
             if (!isAuthenticated && shouldDeductCredits) {
                 await GuestUsageService.incrementUsage(userIP);
+            }
+
+            if (capturedMarkingLogs) {
+                await Promise.race([
+                    AdminAlertService.notifyMarkingLog({
+                        submissionId,
+                        sessionId: result?.sessionId || finalSessionId,
+                        userId: userId || (isAuthenticated ? 'auth-user' : `guest:${userIP}`),
+                        userEmail: (req as any).user?.email,
+                        model: options.model || 'auto',
+                        isRemark: false,
+                        result,
+                        ...capturedMarkingLogs,
+                    }),
+                    new Promise(resolve => setTimeout(resolve, 2500)),
+                ]);
             }
 
             res.end();

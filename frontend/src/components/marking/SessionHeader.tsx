@@ -318,9 +318,12 @@ const SessionHeader: React.FC = () => {
         examCode === 'Unknown' ||
         examCode === 'N/A';
 
-      const mainTitle = (examBoard && subject && examCode && !isGeneric)
+      const baseMainTitle = (examBoard && subject && examCode && !isGeneric)
         ? `${examBoard} ${subject} ${examCode}`
         : sessionTitle;
+      const mainTitle = (detectedQuestion.isModifiedPaper && baseMainTitle && !/^modified\b/i.test(baseMainTitle))
+        ? `Modified ${baseMainTitle}`
+        : baseMainTitle;
 
       const subtitleParts = [];
       if (!isGeneric) {

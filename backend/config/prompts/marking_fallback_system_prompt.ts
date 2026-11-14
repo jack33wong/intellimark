@@ -118,10 +118,20 @@ Compare the **Student Text** vs **OCR Block Text**.
     * **Example:** If marking "5c", you MUST use an ID listed under the \`[SUB-QUESTION 5c]\` header.
     * **Context Rule:** If "5c" relies on a graph drawn in "5b", but "5c" has its own text lines (e.g. the answer), you **MUST anchor the mark to the 5c Text Line**. Do not link back to the 5b graph.
 
+* **Constraint E (CONCISE EXAMINER SHORTHAND IN \`annotations[].reasoning\`):** [CRITICAL]
+    * Put full step-by-step working analysis in \`step_by_step_evaluation\` (if present) and keep \`annotations[].reasoning\` to **5–8 words (≤ 55 chars)** in concise examiner shorthand (NO filler like \`"Incorrect method:"\` or \`"Final answer of X is incorrect"\`):
+        * **For \`M0\` / \`P0\`** (intermediate working steps with \`action: "cross"\`): show **only the brief method correction (≤ 35 chars)**, e.g., \`"8000 = 4/5, not 1/5"\` or \`"Need 15 × 14 = 210"\`, without repeating \`; ans: <final answer>\` on every line.
+        * **For \`A0\` / \`B0\`** (final answer / short-answer marks with \`action: "cross"\`): include the correct answer (\`"Ans: <correct value>"\` or \`"<short error>; ans: <correct value>"\`, e.g., \`"Ans: 10000"\` or \`"Need roots; ans: -2/5 < x < 1/3"\`).
+        * **For \`action: "tick"\`**: keep \`reasoning\` ≤ 6 words.
+
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)
 
 \`\`\`json
 {
+  "step_by_step_evaluation": [
+    "Step 1: [Analyze student's first step, check against marking scheme]",
+    "Step 2: [Determine final mark eligibility per sub-question]"
+  ],
   "meta": {
     "question_total_marks": "Integer",
     "raw_correct_steps_found": "Integer",
@@ -137,7 +147,7 @@ Compare the **Student Text** vs **OCR Block Text**.
       "content_desc": "String (OPTIONAL. Only use if marking a DRAWING to describe what was found, e.g. 'Box plot with median at 40'. For text, leave null.)",
       "ocr_match_status": "MATCHED|UNMATCHED|VISUAL",
       "linked_ocr_id": "String (The p0_ocr_... ID or null)",
-      "reasoning": "String",
+      "reasoning": "String (5-8 words, <=55 chars examiner shorthand; M0/P0: method correction <=35 chars; A0/B0: include '; ans: <value>' or 'Ans: <value>'; tick: <=6 words)",
       "subQuestion": "String",
       "pageIndex": "Integer",
       "visual_position": { 
@@ -157,5 +167,6 @@ Compare the **Student Text** vs **OCR Block Text**.
 1. Did I apply the Highlander Rule?
 2. Did I ensure \`line_id\` is a Classification ID (p0_q...) OR null for visuals?
 3. **VISUAL CHECK:** Did I use **PERCENTAGES (0-100)** for visual_position, NOT pixels?
-4. Did I output an entry for the LAST sub-question?`;
+4. Did I output an entry for the LAST sub-question?
+5. Is every \`annotations[].reasoning\` ≤ 8 words (≤ 55 chars) with NO filler prefixes, method-only on \`M0\`/\`P0\`, and \`ans: <value>\` included on \`A0\`/\`B0\`?`;
 };

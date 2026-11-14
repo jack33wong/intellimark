@@ -138,7 +138,8 @@ export class SVGOverlayService {
     hasMetaPage?: boolean,
     semanticZones?: any[],
     hasDensityError?: boolean,
-    rubricStamps?: RubricStampItem[]
+    rubricStamps?: RubricStampItem[],
+    printedFooterRects?: Array<{ x: number; y: number; w: number; h: number }>
   ): Promise<string> {
     try {
       const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
@@ -177,7 +178,7 @@ export class SVGOverlayService {
         console.warn('[SVGOverlayService] Could not build ink integral map, falling back to bbox-only placement:', inkErr);
       }
 
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones, hasDensityError, inkMap, rubricStamps);
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, scoreToDraw, totalScoreText, hasMetaPage, semanticZones, hasDensityError, inkMap, rubricStamps, printedFooterRects);
       const svgBuffer = Buffer.from(svgOverlay);
 
       const burnedImageBuffer = await sharp(uprightImageBuffer)
@@ -196,7 +197,7 @@ export class SVGOverlayService {
   // SVG GENERATION LOGIC
   // =========================================================================
 
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[], hasDensityError?: boolean, inkMap?: InkDensityMap, rubricStamps?: RubricStampItem[]): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, scoreToDraw?: any, totalScoreText?: string, hasMetaPage?: boolean, semanticZones?: any[], hasDensityError?: boolean, inkMap?: InkDensityMap, rubricStamps?: RubricStampItem[], printedFooterRects?: Array<{ x: number; y: number; w: number; h: number }>): string {
     const hasScores = (Array.isArray(scoreToDraw) ? scoreToDraw.length > 0 : !!scoreToDraw);
     const hasStamps = Array.isArray(rubricStamps) && rubricStamps.length > 0;
     if ((!annotations || annotations.length === 0) && !hasScores && !totalScoreText && (!semanticZones || semanticZones.length === 0) && !hasDensityError && !hasStamps) {
@@ -247,10 +248,18 @@ export class SVGOverlayService {
       });
     }
 
-    // Track occupied rectangles (symbols, score circles, and placed reasoning blocks)
+    // Track occupied rectangles (symbols, score circles, printed footers, and placed reasoning blocks)
     const occupiedRects: Rect2D[] = [];
     // Track student handwriting bboxes so we avoid placing reasoning text over student work
     const studentWorkRects: Rect2D[] = [];
+
+    if (Array.isArray(printedFooterRects) && printedFooterRects.length > 0) {
+      printedFooterRects.forEach(r => {
+        if (r && r.w > 0 && r.h > 0 && !isNaN(r.x) && !isNaN(r.y)) {
+          occupiedRects.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+        }
+      });
+    }
 
     // Pre-register top-right score circles into occupiedRects
     const scoresArray = hasScores ? (Array.isArray(scoreToDraw) ? scoreToDraw : [scoreToDraw]) : [];
@@ -582,8 +591,7 @@ export class SVGOverlayService {
     const isDrawingBox = Boolean(
       (annotation as any).isDrawing ||
       ((annotation as any).line_id && String((annotation as any).line_id).includes('visual_drawing')) ||
-      ((annotation as any).linked_ocr_id && String((annotation as any).linked_ocr_id).includes('visual_drawing')) ||
-      height > 180 * fontScaleFactor
+      ((annotation as any).linked_ocr_id && String((annotation as any).linked_ocr_id).includes('visual_drawing'))
     );
 
     let effectiveHeight = height;
@@ -618,13 +626,34 @@ export class SVGOverlayService {
       h: line1Height
     };
 
-    // Avoid symbol-on-symbol collision (e.g. ✗ M0 and ✗ A0 on closely spaced lines)
-    let shiftAttempts = 0;
+    // Avoid symbol-on-symbol collision (e.g. ✓ P1, ✗ M0, and ✗ A0 on closely spaced lines)
+    // First try shifting right (within pageRightLimit) or 1 step upward before cascading downward
     const shiftStep = Math.max(5, Math.round(16 * fontScaleFactor));
-    while (shiftAttempts < 12 && occupiedRects.some(r => this.rectsOverlap(symRect, r, Math.max(1, 4 * fontScaleFactor)))) {
-      symRect.y += shiftStep;
-      symbolY += shiftStep;
-      shiftAttempts++;
+    const collisionGap = Math.max(1, 4 * fontScaleFactor);
+    const hasSymCollision = (candidate: Rect2D) => occupiedRects.some(r => this.rectsOverlap(candidate, r, collisionGap));
+
+    if (hasSymCollision(symRect)) {
+      const rightShiftAmount = Math.max(Math.round(36 * fontScaleFactor), finalLine1Width + Math.round(6 * fontScaleFactor));
+      const shiftedRightX = Math.min(maxSymbolRightX, symBoxX + rightShiftAmount);
+      const rightCandidate: Rect2D = { ...symRect, x: shiftedRightX };
+      const upShiftAmount = Math.max(shiftStep, line1Height + collisionGap + Math.round(2 * fontScaleFactor));
+      const upCandidate: Rect2D = { ...symRect, y: symBoxY - upShiftAmount };
+
+      if (shiftedRightX > symBoxX && !hasSymCollision(rightCandidate)) {
+        symRect.x = shiftedRightX;
+        symBoxX = shiftedRightX;
+      } else if (upCandidate.y >= edgeMargin && !hasSymCollision(upCandidate)) {
+        symRect.y = upCandidate.y;
+        symBoxY = upCandidate.y;
+        symbolY -= upShiftAmount;
+      } else {
+        let shiftAttempts = 0;
+        while (shiftAttempts < 12 && hasSymCollision(symRect)) {
+          symRect.y += shiftStep;
+          symbolY += shiftStep;
+          shiftAttempts++;
+        }
+      }
     }
 
     // Clamp to page bottom if shifted
@@ -641,7 +670,8 @@ export class SVGOverlayService {
     if ((symbol === '✗' || symbol === '⭕' || isEnglishPositiveAoComment) && reasoning && reasoning.trim()) {
       let cleanReasoning = reasoning
         .replace(/^\s*(?:\[[^\]]+\]\s*)+:?\s*/i, '') // Strip leading [1c] / [2b] subQuestion tags on canvas
-        .replace(/^(?:Incorrect explanation|Explanation mark not awarded|Mark not awarded|Incorrect|Error)\s*:\s*/i, '')
+        .replace(/^(?:Incorrect\s+(?:explanation|method|final\s+answer|answer|working|step|value)|Explanation\s+mark\s+not\s+awarded|Mark\s+not\s+awarded|Incorrect|Error)\s*:\s*/i, '')
+        .replace(/^Final\s+answer\s+of\s+[^\s]+\s+is\s+incorrect[.,;]?\s*/i, '')
         .replace(/\|/g, '. ')
         .replace(/\.\s*\./g, '.')
         .replace(/[.\s]+$/, '')
@@ -649,16 +679,50 @@ export class SVGOverlayService {
 
       // Keep on-page teacher margin notes concise so multiple notes never flood the page
       const maxWords = isEnglishAoBadge ? 7 : 10;
-      const maxCharsLimit = isEnglishAoBadge ? 62 : 68;
+      const maxCharsLimit = isEnglishAoBadge ? 62 : 72;
+
+      // Preserve trailing `; ans: <value>` / `Ans: <value>` suffix when truncating so the correct answer is never cut off
+      const trailingAnsMatch = !isEnglishAoBadge
+        ? cleanReasoning.match(/((?:;\s*|\s+)(?:ans|correct)\s*:\s*[^;]+)$/i)
+        : null;
+      const ansSuffix = trailingAnsMatch ? trailingAnsMatch[1].replace(/^\s+/, '; ') : '';
+      const prefixText = trailingAnsMatch
+        ? cleanReasoning.slice(0, trailingAnsMatch.index).replace(/[;.,\s]+$/, '').trim()
+        : cleanReasoning;
+
       if (cleanReasoning.length > maxCharsLimit) {
-        // Prefer taking the first clause/sentence if it is self-contained
-        const firstClause = cleanReasoning.split(/[.;(]/)[0]?.trim();
-        if (firstClause && firstClause.length >= 12 && firstClause.length <= maxCharsLimit) {
-          cleanReasoning = firstClause;
+        if (ansSuffix) {
+          const budgetForPrefix = maxCharsLimit - ansSuffix.length;
+          if (budgetForPrefix <= 3 || !prefixText) {
+            cleanReasoning = ansSuffix.replace(/^;\s*/, '').trim();
+          } else {
+            const words = prefixText.split(/\s+/);
+            const sliced: string[] = [];
+            for (const w of words) {
+              const candidateStr = sliced.length === 0 ? w : `${sliced.join(' ')} ${w}`;
+              if (candidateStr.length <= budgetForPrefix) {
+                sliced.push(w);
+              } else {
+                break;
+              }
+            }
+            while (sliced.length > 2 && /^(of|the|a|an|in|on|to|for|from|with|and|or|by|at|as|regarding|not|is|are)$/i.test(sliced[sliced.length - 1])) {
+              sliced.pop();
+            }
+            const trimmedPrefix = sliced.join(' ').replace(/[;.,\s]+$/, '').trim();
+            cleanReasoning = trimmedPrefix ? `${trimmedPrefix}${ansSuffix}` : ansSuffix.replace(/^;\s*/, '').trim();
+          }
         } else {
-          const words = cleanReasoning.split(/\s+/);
-          if (words.length > maxWords) {
-            let sliced = words.slice(0, maxWords);
+          // Prefer taking the first clause/sentence if it is self-contained (do not split on decimal points like 3.14)
+          const firstClause = cleanReasoning.split(/[;]|(?<!\d)\.(?!\d)|\(/)[0]?.trim();
+          if (firstClause && firstClause.length >= 12 && firstClause.length <= maxCharsLimit) {
+            cleanReasoning = firstClause;
+          } else {
+            const words = cleanReasoning.split(/\s+/);
+            const sliced = words.slice(0, maxWords);
+            while (sliced.length > 1 && sliced.join(' ').length > maxCharsLimit) {
+              sliced.pop();
+            }
             while (sliced.length > 4 && /^(of|the|a|an|in|on|to|for|from|with|and|or|by|at|as|regarding|not|is|are)$/i.test(sliced[sliced.length - 1])) {
               sliced.pop();
             }
@@ -697,7 +761,7 @@ export class SVGOverlayService {
       mainSVG += `<rect x="${symRect.x - pillPadX}" y="${symRect.y - pillPadY}" width="${symRect.w + pillPadX * 2}" height="${symRect.h + pillPadY * 2}" rx="${pillRx}" fill="rgba(255, 255, 255, 0.88)" />`;
     }
 
-    let currentX = symbolAnchorX;
+    let currentX = symRect.x;
     if (!isFlipped) {
       mainSVG += `<text x="${currentX}" y="${symbolY}" text-anchor="start" fill="${mainColor}" ${haloStyle}
                   font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
@@ -772,9 +836,10 @@ export class SVGOverlayService {
     }
 
     const isEnglishPositiveAoComment = item.color === '#008000' || item.color === '#d97706';
+    const isFinalAnswerZeroMark = /\b[AB]0\b/i.test(String(item.annotation?.text || ''));
 
     // Search window around the symbol, respecting zone bounds when reasonable
-    const searchMinY = Math.max(edgeMargin, Math.min(zoneMinY, symbolRect.y - 30 * fontScaleFactor));
+    const searchMinY = Math.max(edgeMargin, Math.min(zoneMinY, symbolRect.y - 110 * fontScaleFactor));
     const searchMaxY = Math.min(maxBottomY, Math.max(zoneMaxY, symbolRect.y + 240 * fontScaleFactor));
 
     // Evaluate wrap profiles: 24 (clean natural margin phrasing) and 20 (compact)
@@ -807,17 +872,31 @@ export class SVGOverlayService {
         const rightAnchorX = Math.max(minX, Math.min(Math.round(symbolRect.x), maxX));
         const minRightRegionX = Math.max(minX, Math.round(rightAnchorX - 220 * fontScaleFactor));
 
-        // Build candidate list: right-hand side spots under/near the ✗ symbol
-        const candidates: Array<[number, number]> = [
-          // 1. Directly below the ✗ symbol (clamped to page right margin)
-          [rightAnchorX, symbolRect.y + symbolRect.h + 6 * fontScaleFactor],
-          // 2. Right of the ✗ symbol (if room in right margin)
-          [symbolRect.x + symbolRect.w + 12 * fontScaleFactor, symbolRect.y],
-          // 3. Flush against the right margin directly below the ✗ symbol
-          [maxX, symbolRect.y + symbolRect.h + 6 * fontScaleFactor],
-          // 4. Below the student work on the right side
-          [rightAnchorX, studentRect.y + studentRect.h + 10 * fontScaleFactor]
-        ];
+        const aboveSymbolCandidate: [number, number] = [rightAnchorX, symbolRect.y - boxH - 8 * fontScaleFactor];
+        const leftOfSymbolCandidate: [number, number] = [Math.max(minX, symbolRect.x - boxW - 12 * fontScaleFactor), symbolRect.y];
+        const belowSymbolCandidate: [number, number] = [rightAnchorX, symbolRect.y + symbolRect.h + 6 * fontScaleFactor];
+        const rightOfSymbolCandidate: [number, number] = [symbolRect.x + symbolRect.w + 12 * fontScaleFactor, symbolRect.y];
+        const flushRightBelowCandidate: [number, number] = [maxX, symbolRect.y + symbolRect.h + 6 * fontScaleFactor];
+        const belowStudentWorkCandidate: [number, number] = [rightAnchorX, studentRect.y + studentRect.h + 10 * fontScaleFactor];
+
+        // Build candidate list: for A0/B0 final-answer marks, prioritize above-symbol first to avoid footer/total-mark line collisions
+        const candidates: Array<[number, number]> = isFinalAnswerZeroMark
+          ? [
+              aboveSymbolCandidate,
+              belowSymbolCandidate,
+              leftOfSymbolCandidate,
+              rightOfSymbolCandidate,
+              flushRightBelowCandidate,
+              belowStudentWorkCandidate
+            ]
+          : [
+              belowSymbolCandidate,
+              rightOfSymbolCandidate,
+              flushRightBelowCandidate,
+              belowStudentWorkCandidate,
+              aboveSymbolCandidate,
+              leftOfSymbolCandidate
+            ];
 
         // Add 2D grid candidates to avoid collisions & find empty space
         const stepX = Math.max(10, Math.round(40 * fontScaleFactor));
@@ -848,13 +927,16 @@ export class SVGOverlayService {
           }
           const studentOverlapRatio = Math.min(1, studentOverlapArea / Math.max(1, boxW * boxH));
 
-          // Distance from the ideal right-hand spot directly below the ✗ symbol
-          const idealY = symbolRect.y + symbolRect.h + 6 * fontScaleFactor;
+          // Distance from the ideal right-hand spot (above symbol for A0/B0, below symbol otherwise)
+          const belowIdealY = symbolRect.y + symbolRect.h + 6 * fontScaleFactor;
+          const aboveIdealY = Math.max(minY, symbolRect.y - boxH - 8 * fontScaleFactor);
           const dxNorm = Math.abs(cx - rightAnchorX) / normScale;
-          const dyNorm = Math.abs(cy - idealY) / normScale;
+          const dyNorm = isFinalAnswerZeroMark
+            ? Math.min(Math.abs(cy - aboveIdealY), Math.abs(cy - belowIdealY) + 6 * normScale) / normScale
+            : Math.abs(cy - belowIdealY) / normScale;
 
-          // Penalty for placing above the symbol vs beside/below
-          const abovePenalty = (cy + boxH < symbolRect.y) ? 80 : 0;
+          // Penalty for placing above the symbol vs beside/below (0 for A0/B0 final-answer annotations)
+          const abovePenalty = isFinalAnswerZeroMark ? 0 : ((cy + boxH < symbolRect.y) ? 80 : 0);
           // Wrap penalty only for standard mode, not English compact margin
           const wrapPenalty = (charLimit <= 22) && !isEnglishPositiveAoComment ? 14 : 0;
           // Strict penalty if overlapping another placed symbol or reasoning block (NEVER allow smothering a badge)
@@ -867,10 +949,10 @@ export class SVGOverlayService {
             ? (studentOverlapRatio > 0.04 ? 8000 : studentOverlapRatio * 2000)
             : studentOverlapRatio * 500;
 
-          // Faint margin lines should not incur an excessive penalty that forces commentary onto badges or handwriting
+          // Stepped ink penalty so printed lines like "(Total for Question X is Y marks)" strongly repel reasoning text
           const inkPenalty = isEnglishAoOrSpag
             ? (inkDensity > 0.12 ? 2500 + inkDensity * 2000 : inkDensity * 800)
-            : inkDensity * 850;
+            : (inkDensity > 0.08 ? 2500 + inkDensity * 2000 : inkDensity * 850);
 
           const totalCost =
             placedCollisionPenalty +

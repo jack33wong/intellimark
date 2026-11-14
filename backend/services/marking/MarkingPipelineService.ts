@@ -3819,24 +3819,29 @@ export class MarkingPipelineService {
                             detectedQuestionForGrade,
                             markingSchemesMap
                         );
-                    const firstDetection = detectionResults?.[0]?.detectionResult?.match || {};
+                    const validDetectionEntry = detectionResults?.find((r: any) => {
+                        const m = r?.detectionResult?.match;
+                        return r?.detectionResult?.found === true && m?.board && m.board !== 'Unknown' && m.board !== 'N/A' && m?.paperCode !== 'Generic Question';
+                    });
+                    const firstDetection = validDetectionEntry?.detectionResult?.match || detectionResults?.[0]?.detectionResult?.match || {};
                     const isAnyQuestionFound = detectionResults?.some((r: any) => r.detectionResult?.found === true) || false;
-                    const isRealPastPaper = !isModifiedPaper && Boolean(firstDetection.board && firstDetection.board !== 'Unknown' && isAnyQuestionFound);
+                    const isRealPastPaper = Boolean(firstDetection.board && firstDetection.board !== 'Unknown' && isAnyQuestionFound);
                     const examInfo = isRealPastPaper ? {
                         examBoard: firstDetection.board || '',
                         examSeries: firstDetection.examSeries || firstDetection.year || '',
                         subject: firstDetection.subject || firstDetection.qualification || '',
                         examCode: firstDetection.paperCode || '',
-                        tier: firstDetection.tier || ''
+                        tier: firstDetection.tier || '',
+                        ...(isModifiedPaper ? { isModified: true } : {})
                     } : undefined;
 
                     const summary = await SessionManagementService.generateMasterPerformanceSummary(
                         allQuestionResults,
                         actualModel,
                         usageTracker,
-                        isRealPastPaper ? gradeResult.grade : undefined,
-                        isRealPastPaper ? gradeResult.predictedGrade : undefined,
-                        isRealPastPaper ? gradeResult.boundaries : undefined,
+                        isRealPastPaper && !isModifiedPaper ? gradeResult.grade : undefined,
+                        isRealPastPaper && !isModifiedPaper ? gradeResult.predictedGrade : undefined,
+                        isRealPastPaper && !isModifiedPaper ? gradeResult.boundaries : undefined,
                         { totalMarks: preTotal, awardedMarks: preOverall, scoreText: preScoreText },
                         examInfo
                     );

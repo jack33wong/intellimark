@@ -135,6 +135,11 @@ export class MarkingOutputService {
 
             try {
                 const zonesForThisPageArray = Array.from(uniqueZonesMap.values());
+                const pageOcrEntry = (allPagesOcrData || []).find(
+                    p => p.pageIndex === pageIndex || (page.originalPageIndex !== undefined && p.pageIndex === page.originalPageIndex)
+                );
+                const printedFooterRects = MarkingOutputService.extractPrintedBoilerplateRects(pageOcrEntry?.ocrData);
+
                 const annotatedImageData = await SVGOverlayService.burnSVGOverlayServerSide(
                     page.imageData,
                     annotationsForThisPage,
@@ -144,7 +149,8 @@ export class MarkingOutputService {
                     hasMetaPage,
                     zonesForThisPageArray,
                     hasDensityError,
-                    rubricStampsForThisPage
+                    rubricStampsForThisPage,
+                    printedFooterRects
                 );
                 return annotatedImageData;
             } catch (drawError) {
@@ -269,5 +275,104 @@ export class MarkingOutputService {
             updatedQuestionResults,
             sortedStandardizedPages
         };
+    }
+
+    /**
+     * Extracts bounding boxes for printed boilerplate/footers (e.g. "(Total for Question X is Y marks)",
+     * "DO NOT WRITE IN THIS AREA", "Turn over", "BLANK PAGE", "Barcode", "ISBN") from OCR data on a page
+     * so SVGOverlayService pre-seeds occupiedRects and avoids placing reasoning text over them.
+     */
+    private static extractPrintedBoilerplateRects(ocrData: any): Array<{ x: number; y: number; w: number; h: number }> {
+        if (!ocrData) return [];
+        const BOILERPLATE_REGEX = /DO NOT WRITE|Turn over|BLANK PAGE|Total for Question|Barcode|Isbn/i;
+        const rects: Array<{ x: number; y: number; w: number; h: number }> = [];
+        const seenKeys = new Set<string>();
+
+        const candidates: any[] = [
+            ...(Array.isArray(ocrData.mathBlocks) ? ocrData.mathBlocks : []),
+            ...(Array.isArray(ocrData.blocks) ? ocrData.blocks : []),
+            ...(Array.isArray(ocrData.boundingBoxes) ? ocrData.boundingBoxes : []),
+            ...(Array.isArray(ocrData.rawResponse?.rawLineData) ? ocrData.rawResponse.rawLineData : []),
+            ...(Array.isArray(ocrData.rawResponse?.detectedBlocks) ? ocrData.rawResponse.detectedBlocks : []),
+            ...(Array.isArray(ocrData.rawResponse?.preClusterBlocks) ? ocrData.rawResponse.preClusterBlocks : [])
+        ];
+
+        for (const item of candidates) {
+            if (!item) continue;
+            const rawText = String(
+                item.text || item.latex_styled || item.mathpixLatex || item.googleVisionText || ''
+            ).trim();
+            if (!rawText || !BOILERPLATE_REGEX.test(rawText)) continue;
+
+            let box: { x: number; y: number; w: number; h: number } | null = null;
+            if (Array.isArray(item.bbox) && item.bbox.length === 4) {
+                box = { x: Number(item.bbox[0]), y: Number(item.bbox[1]), w: Number(item.bbox[2]), h: Number(item.bbox[3]) };
+            } else if (item.coordinates && typeof item.coordinates.x === 'number') {
+                box = {
+                    x: Number(item.coordinates.x),
+                    y: Number(item.coordinates.y),
+                    w: Number(item.coordinates.width ?? item.coordinates.w),
+                    h: Number(item.coordinates.height ?? item.coordinates.h)
+                };
+            } else if (item.geometry && typeof item.geometry.minX === 'number') {
+                box = {
+                    x: Number(item.geometry.minX),
+                    y: Number(item.geometry.minY),
+                    w: Number(item.geometry.width),
+                    h: Number(item.geometry.height)
+                };
+            } else if (item.region) {
+                if (typeof item.region.top_left_x === 'number') {
+                    box = {
+                        x: Number(item.region.top_left_x),
+                        y: Number(item.region.top_left_y),
+                        w: Number(item.region.width),
+                        h: Number(item.region.height)
+                    };
+                } else if (typeof item.region.x === 'number') {
+                    box = {
+                        x: Number(item.region.x),
+                        y: Number(item.region.y),
+                        w: Number(item.region.w ?? item.region.width),
+                        h: Number(item.region.h ?? item.region.height)
+                    };
+                }
+            } else if (typeof item.x === 'number' && typeof item.y === 'number' && (typeof item.width === 'number' || typeof item.w === 'number')) {
+                box = {
+                    x: Number(item.x),
+                    y: Number(item.y),
+                    w: Number(item.width ?? item.w),
+                    h: Number(item.height ?? item.h)
+                };
+            } else {
+                const points = item.cnt || item.contours || item.points || item.poly_2d;
+                if (Array.isArray(points) && points.length > 0) {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    for (const pt of points) {
+                        const px = Array.isArray(pt) ? Number(pt[0]) : Number(pt?.x);
+                        const py = Array.isArray(pt) ? Number(pt[1]) : Number(pt?.y);
+                        if (!isNaN(px) && !isNaN(py)) {
+                            minX = Math.min(minX, px);
+                            minY = Math.min(minY, py);
+                            maxX = Math.max(maxX, px);
+                            maxY = Math.max(maxY, py);
+                        }
+                    }
+                    if (minX !== Infinity && minY !== Infinity && maxX > minX && maxY > minY) {
+                        box = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+                    }
+                }
+            }
+
+            if (box && box.w > 0 && box.h > 0 && !isNaN(box.x) && !isNaN(box.y)) {
+                const key = `${Math.round(box.x)}_${Math.round(box.y)}_${Math.round(box.w)}_${Math.round(box.h)}`;
+                if (!seenKeys.has(key)) {
+                    seenKeys.add(key);
+                    rects.push(box);
+                }
+            }
+        }
+
+        return rects;
     }
 }

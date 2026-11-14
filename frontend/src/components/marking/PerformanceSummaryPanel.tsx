@@ -49,6 +49,7 @@ interface SummaryV2Payload {
     subject?: string;
     examCode?: string;
     tier?: string;
+    isModified?: boolean;
   } | null;
   score: {
     awardedMarks: number;
@@ -527,6 +528,7 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
             {examInfo.examCode && <span className="tmua-pill strong">{examInfo.examCode}</span>}
             {examInfo.examSeries && <span className="tmua-pill">{examInfo.examSeries}</span>}
             {examInfo.tier && examInfo.tier !== 'N/A' && <span className="tmua-pill">{examInfo.tier}</span>}
+            {examInfo.isModified && <span className="tmua-pill modified">Modified</span>}
           </div>
         )}
       </div>

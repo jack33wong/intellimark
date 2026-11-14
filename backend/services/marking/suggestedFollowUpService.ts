@@ -179,6 +179,11 @@ export class SuggestedFollowUpService {
       return `<div class="tmua-exam-pills"><span class="tmua-pill">Custom</span></div>\n\n`;
     }
 
+    // 6. Modified indicator pill (when past paper has modified questions)
+    if (detectedQuestion?.isModifiedPaper) {
+      pills.push(`<span class="tmua-pill modified">Modified</span>`);
+    }
+
     return `<div class="tmua-exam-pills">${pills.join('')}</div>\n\n`;
   }
 

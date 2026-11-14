@@ -1132,11 +1132,12 @@ export class MarkingInstructionService {
     // If a question has no sub-questions in the scheme or metadata (e.g. English Q2, Q3, Q4, Q5),
     // clear hallucinated AO-derived subQuestion labels like "4.4" (from Q4 + AO4) so they don't spawn phantom sub-rows.
     const isHolisticLoR =
-      parsedResponse?.rubricEvaluation?.scoringType === 'SINGLE_AO_LOR' ||
-      parsedResponse?.rubricEvaluation?.scoringType === 'DUAL_AO_LOR';
+      Boolean(parsedResponse?.rubricEvaluation && parsedResponse.rubricEvaluation.scoringType !== 'POINT_BASED') ||
+      Boolean((normalizedScheme as any)?.levels);
     const hasRealSubQuestions =
       !isHolisticLoR && (
-        (normalizedScheme?.subQuestionMaxScores && Object.keys(normalizedScheme.subQuestionMaxScores).length > 0) ||
+        Object.keys(normalizedScheme?.subQuestionMaxScores || {}).some(k => k !== String(baseQNum) && Number(normalizedScheme!.subQuestionMaxScores![k]) > 0) ||
+        Object.keys(subQuestionPageMap || {}).some(k => k !== String(baseQNum)) ||
         (subQuestionMetadata?.hasSubQuestions === true && (subQuestionMetadata?.subQuestions?.length || 0) > 0)
       );
     if (!hasRealSubQuestions && Array.isArray(parsedResponse?.annotations)) {

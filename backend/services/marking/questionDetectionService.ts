@@ -1041,31 +1041,12 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     p.examCode !== 'N/A'
   );
 
-  // If any question was detected as teacher-modified, never label the session as an official past paper
   const hasModifiedQuestion = detectionResults.some(
     dr => dr?.detectionResult?.isModifiedQuestion === true
   );
-  if (hasModifiedQuestion) {
-    const allQNums = Array.from(new Set(
-      detectionResults
-        .map((dr: any) => parseInt(String(dr?.question?.questionNumber || dr?.detectionResult?.match?.questionNumber || ''), 10))
-        .filter((n: number) => !isNaN(n))
-    )).sort((a, b) => a - b);
-
-    let qRange = '';
-    if (allQNums.length === 1) {
-      qRange = ` Q${allQNums[0]}`;
-    } else if (allQNums.length > 1) {
-      qRange = ` Q${allQNums[0]} to Q${allQNums[allQNums.length - 1]}`;
-    }
-
-    const subjectPart = validPaper?.subject ? getShortSubjectName(validPaper.subject) : '';
-    const prefix = subjectPart ? `${subjectPart} (Modified)` : 'Modified Paper';
-    return `${prefix}${qRange}`.replace(/\s+/g, ' ').trim();
-  }
 
   if (validPaper) {
-    // Pattern: Exam Series + Exam Code + Board Short + Subject Short + Tier
+    // Pattern: (Modified) + Exam Series + Exam Code + Board Short + Subject Short + Tier
     const p = validPaper;
     const seriesPart = p.examSeries || '';
     const codePart = p.examCode || '';
@@ -1090,7 +1071,25 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     }
 
     const baseTitle = `${seriesPart} ${codePart} ${boardPart} ${subjectPart} ${tierPart}`.replace(/\s+/g, ' ').trim();
-    return `${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
+    const modifiedPrefix = hasModifiedQuestion ? 'Modified ' : '';
+    return `${modifiedPrefix}${baseTitle}${qRange} ${totalMarks} marks`.replace(/\s+/g, ' ').trim();
+  }
+
+  if (hasModifiedQuestion) {
+    const allQNums = Array.from(new Set(
+      detectionResults
+        .map((dr: any) => parseInt(String(dr?.question?.questionNumber || dr?.detectionResult?.match?.questionNumber || ''), 10))
+        .filter((n: number) => !isNaN(n))
+    )).sort((a, b) => a - b);
+
+    let qRange = '';
+    if (allQNums.length === 1) {
+      qRange = ` Q${allQNums[0]}`;
+    } else if (allQNums.length > 1) {
+      qRange = ` Q${allQNums[0]} to Q${allQNums[allQNums.length - 1]}`;
+    }
+
+    return `Modified Paper${qRange}`.replace(/\s+/g, ' ').trim();
   }
 
   // All papers are generic or unknown. Bypass the structured builder and use the question text for a cleaner title
