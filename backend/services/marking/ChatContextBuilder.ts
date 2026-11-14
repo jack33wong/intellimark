@@ -4,6 +4,11 @@ import {
     QuestionPart,
     Mark
 } from '../../types/index.js';
+import {
+    resolveSubjectProfile,
+    SUBJECT_PROFILES,
+    type SubjectProfile
+} from '../../config/subjectProfiles.js';
 
 /**
  * Service to build and format marking context for follow-up chat.
@@ -161,14 +166,29 @@ export class ChatContextBuilder {
 
         // 2. Build Exam Info
         let examInfo = undefined;
+        let detectedSubject: string | undefined = (data.questionDetection as any)?.detectedSubject;
         if (data.questionDetection?.match) {
             const m = data.questionDetection.match;
             // Estimate total marks from all questions
             const estimatedTotal = questionResults.reduce((sum, q) => sum + q.totalMarks, 0);
+            const rawTextHint = questionResults
+                .map(q => [q.text, q.scheme].filter(Boolean).join(' '))
+                .join('\n');
+            const cleanMatchSubject = m.subject && !/^(unknown|n\/a|general)$/i.test(String(m.subject).trim())
+                ? m.subject
+                : undefined;
+            const resolvedProfile = resolveSubjectProfile({
+                detectedSubject: (data.questionDetection as any)?.detectedSubject || m.detectedSubject,
+                subject: cleanMatchSubject,
+                paperCode: m.paperCode,
+                paperTitle: m.paperTitle,
+                rawTextHint
+            });
+            detectedSubject = resolvedProfile.key;
 
             examInfo = {
                 examBoard: m.board || 'Unknown',
-                subject: m.subject || 'Mathematics', // Default
+                subject: cleanMatchSubject || resolvedProfile.displayName,
                 examCode: m.paperCode || 'Unknown',
                 examSeries: m.year || 'Unknown',
                 tier: m.tier || 'Unknown',
@@ -188,6 +208,7 @@ export class ChatContextBuilder {
 
         return {
             sessionType: 'Marking',
+            ...(detectedSubject ? { detectedSubject } : {}),
             totalQuestionsMarked: questionResults.length,
             overallScore: {
                 awarded: data.overallScore.awardedMarks,
@@ -208,42 +229,123 @@ export class ChatContextBuilder {
      */
     static async buildQuestionModeContext(data: {
         detectedQuestion: any,
-        sessionType?: 'Question' | 'Marking' | 'Mixed'
+        sessionType?: 'Question' | 'Marking' | 'Mixed',
+        subjectProfile?: SubjectProfile,
+        examPaperHint?: string | null
     }): Promise<MarkingContext> {
-        // 1. Extract Paper & Questions
+        // 1. Extract Paper & Questions (merge examPapers with any unmatched detectedQuestion.questions, and fall back when examPapers is empty)
         const paper = data.detectedQuestion?.examPapers?.[0];
-        const questions = paper?.questions || [];
+        const examPaperQuestions = (data.detectedQuestion?.examPapers || []).flatMap((ep: any) => ep.questions || []);
+        const rootQuestions = Array.isArray(data.detectedQuestion?.questions) ? data.detectedQuestion.questions : [];
 
-        const questionResults: MarkingContextQuestionResult[] = questions.map((q: any) => ({
-            number: String(q.questionNumber || q.number || ''),
-            text: (q.questionText || q.text || '').substring(0, 2000),
-            scheme: typeof q.markingScheme === 'string'
-                ? q.markingScheme
-                : (q.markingScheme ? JSON.stringify(q.markingScheme) : ''),
-            totalMarks: q.marks || 0,
-            earnedMarks: 0,
-            hasScheme: !!q.markingScheme,
-            pageIndex: q.pageIndex || 0,
-            parts: []
-        }));
+        const normalizeQNum = (q: any) => String(q?.questionNumber || q?.number || '').trim().toLowerCase();
+        const rootByNum = new Map<string, any>();
+        for (const rq of rootQuestions) {
+            const num = normalizeQNum(rq);
+            if (num && !rootByNum.has(num)) rootByNum.set(num, rq);
+        }
+
+        const questions = examPaperQuestions.length > 0
+            ? [
+                ...examPaperQuestions.map((epq: any) => {
+                    if (epq.sourceImageIndex === undefined && epq.pageIndex === undefined) {
+                        const matchedRoot = rootByNum.get(normalizeQNum(epq));
+                        if (matchedRoot?.sourceImageIndex !== undefined) {
+                            return { ...epq, sourceImageIndex: matchedRoot.sourceImageIndex };
+                        }
+                    }
+                    return epq;
+                }),
+                ...rootQuestions.filter((rq: any) => {
+                    const num = normalizeQNum(rq);
+                    const inExamPapers = examPaperQuestions.some((epq: any) =>
+                        (num && normalizeQNum(epq) === num) ||
+                        (rq.extractedQuestionText && epq.extractedQuestionText && rq.extractedQuestionText === epq.extractedQuestionText)
+                    );
+                    return !inExamPapers && (rq.detection?.found === false || !rq.databaseQuestionText);
+                })
+            ]
+            : rootQuestions;
+
+        const questionResults: MarkingContextQuestionResult[] = questions.map((q: any) => {
+            const rawText = (q.questionText || q.text || '').substring(0, 2000);
+            const databaseQuestionText = q.databaseQuestionText
+                ? String(q.databaseQuestionText).substring(0, 2000)
+                : undefined;
+            const extractedQuestionText = (
+                q.extractedQuestionText ||
+                (!databaseQuestionText ? rawText : '') ||
+                ''
+            ).substring(0, 2000);
+
+            return {
+                number: String(q.questionNumber || q.number || ''),
+                text: rawText,
+                ...(extractedQuestionText ? { extractedQuestionText } : {}),
+                ...(databaseQuestionText ? { databaseQuestionText } : {}),
+                scheme: typeof q.markingScheme === 'string'
+                    ? q.markingScheme
+                    : (q.markingScheme ? JSON.stringify(q.markingScheme) : ''),
+                totalMarks: q.marks || 0,
+                earnedMarks: 0,
+                hasScheme: !!q.markingScheme,
+                pageIndex: q.sourceImageIndex ?? q.pageIndex ?? 0,
+                parts: []
+            };
+        });
 
         // 2. Build Exam Info
         let examInfo = undefined;
         const m = data.detectedQuestion?.match || paper; // Fallback to paper metadata if no match object
+        let detectedSubject: string | undefined =
+            data.detectedQuestion?.detectedSubject ||
+            m?.detectedSubject ||
+            (data.subjectProfile && data.subjectProfile.key !== 'MATHS' ? data.subjectProfile.key : undefined);
+
+        const rawTextHint = questionResults
+            .map(q => [q.text, q.extractedQuestionText, q.databaseQuestionText, q.scheme].filter(Boolean).join(' '))
+            .join('\n');
 
         if (m) {
+            const examCode = m.examCode || m.paperCode || 'Unknown';
+            const cleanMatchSubject = m.subject && !/^(unknown|n\/a|general)$/i.test(String(m.subject).trim())
+                ? m.subject
+                : undefined;
+            const cleanDetectedSubject = data.detectedQuestion?.subject && !/^(unknown|n\/a|general)$/i.test(String(data.detectedQuestion.subject).trim())
+                ? data.detectedQuestion.subject
+                : undefined;
+            const resolvedProfile = resolveSubjectProfile({
+                detectedSubject,
+                subject: cleanMatchSubject || cleanDetectedSubject || (data.subjectProfile?.key === 'UNIVERSAL_BYOMS' ? data.subjectProfile.displayName : undefined),
+                paperCode: (examCode !== 'Unknown' && examCode !== 'Generic Question')
+                    ? examCode
+                    : (data.examPaperHint || undefined),
+                paperTitle: m.paperTitle,
+                rawTextHint
+            });
+            detectedSubject = resolvedProfile.key;
+
             examInfo = {
                 examBoard: m.examBoard || m.board || 'Unknown',
-                subject: m.subject || 'Mathematics',
-                examCode: m.examCode || m.paperCode || 'Unknown',
+                subject: cleanMatchSubject || resolvedProfile.displayName,
+                examCode,
                 examSeries: m.examSeries || m.year || 'Unknown',
                 tier: m.tier || 'Unknown',
                 totalMarks: questions.reduce((sum: number, q: any) => sum + (q.marks || 0), 0)
             };
+        } else if (!detectedSubject && (data.examPaperHint || rawTextHint.trim())) {
+            const resolvedFromHints = resolveSubjectProfile({
+                paperCode: data.examPaperHint || undefined,
+                rawTextHint
+            });
+            if (resolvedFromHints.key !== 'MATHS') {
+                detectedSubject = resolvedFromHints.key;
+            }
         }
 
         return {
             sessionType: data.sessionType || 'Question',
+            ...(detectedSubject ? { detectedSubject } : {}),
             totalQuestionsMarked: questions.length,
             overallScore: {
                 awarded: 0,
@@ -258,47 +360,117 @@ export class ChatContextBuilder {
     }
 
     /**
+     * Resolves the SubjectProfile from a stored MarkingContext (and optional focused question ID).
+     * Works for both matched papers (using examInfo) and unmatched Question Mode uploads (using question text/scheme).
+     */
+    static resolveSubjectProfile(markingContext?: MarkingContext, contextQuestionId?: string | null): SubjectProfile {
+        if (!markingContext) {
+            return SUBJECT_PROFILES.MATHS;
+        }
+        const questions = Array.isArray(markingContext.questionResults) ? markingContext.questionResults : [];
+        const focusedQuestions = contextQuestionId
+            ? questions.filter(q => String(q.number) === String(contextQuestionId))
+            : [];
+        const sourceQuestions = focusedQuestions.length > 0 ? focusedQuestions : questions;
+        const rawTextHint = sourceQuestions
+            .map(q => {
+                const rubricHint = q.rubricEvaluation
+                    ? [
+                        q.rubricEvaluation.rubricStamp,
+                        ...(q.rubricEvaluation.aoBreakdown || []).map((a: any) => `${a.ao} ${a.levelLabel || ''}`)
+                    ].filter(Boolean).join(' ')
+                    : '';
+                return [q.text, q.extractedQuestionText, q.databaseQuestionText, q.scheme, rubricHint].filter(Boolean).join(' ');
+            })
+            .join('\n');
+
+        return resolveSubjectProfile({
+            detectedSubject: markingContext.detectedSubject,
+            subject: markingContext.examInfo?.subject,
+            paperCode: markingContext.examInfo?.examCode && markingContext.examInfo.examCode !== 'Unknown'
+                ? markingContext.examInfo.examCode
+                : undefined,
+            rawTextHint
+        });
+    }
+
+    /**
      * Formats the stored MarkingContext into a prompt string for the AI.
      * This is called for every text-based follow-up message.
      * Now uses clean nested parts[] structure - no parsing needed!
      */
     static formatContextAsPrompt(markingContext: MarkingContext, contextQuestionId?: string | null): string {
-        let prompt = `Here is the global state of the student's exam:\n\n`;
+        let prompt = '';
 
-        // Global Performance
-        prompt += `\n** OVERALL PERFORMANCE **\n`;
-        prompt += `** Total Score **: ${markingContext.overallScore.scoreText} (${markingContext.overallScore.percentage}%)\n`;
-        if (markingContext.grade) {
-            prompt += `** Grade Achieved **: ${markingContext.grade.achieved || 'N/A'} \n`;
-            if (markingContext.grade.predicted) {
-                prompt += `** Predicted Grade **: ${markingContext.grade.predicted} \n`;
-            }
-            if (markingContext.grade.boundaries && Object.keys(markingContext.grade.boundaries).length > 0) {
-                prompt += `** Grade Boundaries (${markingContext.grade.boundaryType}) **: \n`;
-                const sortedBoundaries = Object.entries(markingContext.grade.boundaries)
-                    .sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
-                for (const [g, mark] of sortedBoundaries) {
-                    prompt += `- Grade ${g}: ${mark} marks\n`;
+        if (markingContext.sessionType === 'Question') {
+            prompt += `Here is the Question Mode session context for the student's uploaded question(s):\n\n`;
+            prompt += `** Session Type **: Question Mode (No initial student work was marked from the image; the student may ask for explanations, type an answer to be marked, or clarify/dispute a matched question.)\n`;
+            if (markingContext.examInfo) {
+                const e = markingContext.examInfo;
+                const isGenericPlaceholderExam =
+                    e.examCode === 'Generic Question' ||
+                    (
+                        /^(unknown|n\/a)$/i.test(String(e.examSeries || '').trim()) &&
+                        /^(unknown|n\/a|generic question)$/i.test(String(e.examCode || '').trim()) &&
+                        /^(unknown|n\/a)$/i.test(String(e.examBoard || '').trim())
+                    );
+                if (!isGenericPlaceholderExam) {
+                    prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
+                }
+                if (e.subject) {
+                    prompt += `** Subject **: ${e.subject} \n`;
                 }
             }
-        }
+            prompt += `\n`;
+        } else {
+            prompt += `Here is the global state of the student's exam:\n\n`;
 
-        if (markingContext.examInfo) {
-            const e = markingContext.examInfo;
-            // Unify with Sidebar format: Series Code Board
-            prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
-        }
+            // Global Performance
+            prompt += `\n** OVERALL PERFORMANCE **\n`;
+            prompt += `** Total Score **: ${markingContext.overallScore.scoreText} (${markingContext.overallScore.percentage}%)\n`;
+            if (markingContext.grade) {
+                prompt += `** Grade Achieved **: ${markingContext.grade.achieved || 'N/A'} \n`;
+                if (markingContext.grade.predicted) {
+                    prompt += `** Predicted Grade **: ${markingContext.grade.predicted} \n`;
+                }
+                if (markingContext.grade.boundaries && Object.keys(markingContext.grade.boundaries).length > 0) {
+                    prompt += `** Grade Boundaries (${markingContext.grade.boundaryType}) **: \n`;
+                    const sortedBoundaries = Object.entries(markingContext.grade.boundaries)
+                        .sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+                    for (const [g, mark] of sortedBoundaries) {
+                        prompt += `- Grade ${g}: ${mark} marks\n`;
+                    }
+                }
+            }
 
-        if (markingContext.grade) {
-            prompt += `** Grade Achieved **: ${markingContext.grade.achieved} \n`;
-        }
+            if (markingContext.examInfo) {
+                const e = markingContext.examInfo;
+                const isGenericPlaceholderExam =
+                    e.examCode === 'Generic Question' ||
+                    (
+                        /^(unknown|n\/a)$/i.test(String(e.examSeries || '').trim()) &&
+                        /^(unknown|n\/a|generic question)$/i.test(String(e.examCode || '').trim()) &&
+                        /^(unknown|n\/a)$/i.test(String(e.examBoard || '').trim())
+                    );
+                if (!isGenericPlaceholderExam) {
+                    // Unify with Sidebar format: Series Code Board
+                    prompt += `** Exam **: ${e.examSeries} ${e.examCode} ${e.examBoard} \n`;
+                } else if (e.subject) {
+                    prompt += `** Subject **: ${e.subject} \n`;
+                }
+            }
 
-        // Add Universal Score Breakdown Map
-        prompt += `\n## Score Breakdown Map\n`;
-        for (const q of markingContext.questionResults) {
-            prompt += `- Question ${q.number}: ${q.earnedMarks}/${q.totalMarks} marks\n`;
+            if (markingContext.grade) {
+                prompt += `** Grade Achieved **: ${markingContext.grade.achieved} \n`;
+            }
+
+            // Add Universal Score Breakdown Map
+            prompt += `\n## Score Breakdown Map\n`;
+            for (const q of markingContext.questionResults) {
+                prompt += `- Question ${q.number}: ${q.earnedMarks}/${q.totalMarks} marks\n`;
+            }
+            prompt += `\n`;
         }
-        prompt += `\n`;
 
         // 2. Question Details - iterate parts[] directly
         let questionsToInclude = markingContext.questionResults;
@@ -322,9 +494,15 @@ export class ChatContextBuilder {
 
         for (const q of questionsToInclude) {
             prompt += `### Question ${q.number}: ${q.text} \n`;
+            if (q.extractedQuestionText && q.extractedQuestionText.trim() !== q.text.trim()) {
+                prompt += `** Uploaded Question Text (Extracted from Student Image) **:\n${q.extractedQuestionText}\n`;
+            }
 
             if (markingContext.sessionType === 'Question') {
                 // QUESTION MODE: Show Scheme/Solution only
+                if (q.totalMarks > 0) {
+                    prompt += `** Maximum Marks **: ${q.totalMarks}\n`;
+                }
                 if (q.scheme) {
                     prompt += `** Reference Solution / Marking Scheme **: \n${q.scheme} \n`;
                 } else {

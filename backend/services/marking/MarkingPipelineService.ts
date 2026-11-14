@@ -2014,6 +2014,17 @@ export class MarkingPipelineService {
             // Simplified binary mode: either pure Question Mode (no student work) or pure Marking Mode (no mixed mode)
             const isMixedContent = false;
 
+            const fileNamePaperHintMatch = uploadedFileNames
+                .join(' ')
+                .match(/\b(1ma1|8300|8700|j560|9ma0)[-_\/]([0-9a-z]{1,3})\b/i);
+            const fileNamePaperHint = fileNamePaperHintMatch
+                ? `${fileNamePaperHintMatch[1].toUpperCase()}/${fileNamePaperHintMatch[2].toUpperCase()}`
+                : undefined;
+            const cleanGeoPaperHint = geoPaperCodeHint
+                ? (geoPaperCodeHint.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6])\b/i)?.[1] || geoPaperCodeHint.split(/\s+/)[0])
+                : fileNamePaperHint;
+            const effectiveExamPaperHint = options.customText || cleanGeoPaperHint;
+
             console.log(`🔍 [MODE DETECTION] Analysis (AFTER overrides):`);
             console.log(`  - All question-only: ${isQuestionMode}`);
             console.log(`  - Has mixed content: ${isMixedContent}`);
@@ -2135,7 +2146,9 @@ export class MarkingPipelineService {
                     } as any,
                     startTime,
                     logStep,
-                    usageTracker
+                    usageTracker,
+                    examPaperHint: effectiveExamPaperHint ?? null,
+                    subjectProfile
                 });
 
                 const pureQuestionResult: any = {
@@ -2180,17 +2193,7 @@ export class MarkingPipelineService {
                 pagesToOcr = new Set(standardizedPages.map(p => p.pageIndex));
             }
 
-            // Build effective paper hint & extract questions from Classification BEFORE OCR so we can fast-check DB before LLM scheme parsing
-            const fileNamePaperHintMatch = uploadedFileNames
-                .join(' ')
-                .match(/\b(1ma1|8300|8700|j560|9ma0)[-_\/]([0-9a-z]{1,3})\b/i);
-            const fileNamePaperHint = fileNamePaperHintMatch
-                ? `${fileNamePaperHintMatch[1].toUpperCase()}/${fileNamePaperHintMatch[2].toUpperCase()}`
-                : undefined;
-            const cleanGeoPaperHint = geoPaperCodeHint
-                ? (geoPaperCodeHint.match(/\b([0-9A-Z]{4,6}\/[0-9A-Z]{1,3}|8700\/[12]|8300\/[123][FH]|1MA1\/[123][FH]|J560\/0[1-6])\b/i)?.[1] || geoPaperCodeHint.split(/\s+/)[0])
-                : fileNamePaperHint;
-            const effectiveExamPaperHint = options.customText || cleanGeoPaperHint;
+            // Extract questions from Classification BEFORE OCR so we can fast-check DB before LLM scheme parsing
             const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
 
             // ⚡ [FAST DB PRE-CHECK FOR UPLOADED MARKING SCHEMES]:
@@ -2204,7 +2207,8 @@ export class MarkingPipelineService {
                         classificationResult,
                         effectiveExamPaperHint,
                         undefined,
-                        subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
+                        subjectProfile?.ocrStrategy === 'VISION_VERBATIM',
+                        subjectProfile
                     );
                     const totalGroups = dbPreCheck.markingSchemesMap.size;
                     const matchedDbSchemes = Array.from(dbPreCheck.markingSchemesMap.values()).filter(
@@ -2418,7 +2422,8 @@ export class MarkingPipelineService {
                 classificationResult,
                 effectiveExamPaperHint,
                 inputMarkingScheme,
-                subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
+                subjectProfile?.ocrStrategy === 'VISION_VERBATIM',
+                subjectProfile
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;
@@ -3765,7 +3770,8 @@ export class MarkingPipelineService {
                     logStep,
                     usageTracker,
                     suppressSseCompletion: true,  // CRITICAL: Suppress completion in mixed mode!
-                    examPaperHint: dominantPaperHint // ✅ Pass paper hint from marking pass
+                    examPaperHint: dominantPaperHint, // ✅ Pass paper hint from marking pass
+                    subjectProfile
                 });
 
                 console.log(`✅ [QUESTION-ONLY] Processed ${questionOnlyPages.length} page(s)`);
@@ -4367,7 +4373,8 @@ export class MarkingPipelineService {
             classificationResult,
             options.paperTitle || null,
             parsedCustomScheme,
-            subjectProfile?.ocrStrategy === 'VISION_VERBATIM'
+            subjectProfile?.ocrStrategy === 'VISION_VERBATIM',
+            subjectProfile
         );
 
         const markingSchemesMap = orchestrationResult.markingSchemesMap;

@@ -18,6 +18,7 @@ import { SessionManagementService } from '../sessionManagementService.js';
 import type { QuestionSessionContext } from '../../types/sessionManagement.js';
 import type { Express } from 'express-serve-static-core';
 import UsageTracker from '../../utils/UsageTracker.js';
+import { resolveSubjectProfile, type SubjectProfile } from '../../config/subjectProfiles.js';
 
 const MULTI_IMAGE_STEPS = [
   'Input Validation',
@@ -55,7 +56,8 @@ export class QuestionModeHandlerService {
     logStep,
     usageTracker,  // Add tracker parameter
     suppressSseCompletion = false,  // Skip SSE completion in mixed mode
-    examPaperHint = null // ✅ Accept optional paper hint
+    examPaperHint = null, // ✅ Accept optional paper hint
+    subjectProfile // ✅ Optional SubjectProfile from MarkingPipelineService
   }: {
     classificationResult: any;
     standardizedPages: StandardizedPage[];
@@ -70,6 +72,7 @@ export class QuestionModeHandlerService {
     usageTracker: UsageTracker;  // Add tracker type
     suppressSseCompletion?: boolean;  // Optional flag for mixed mode
     examPaperHint?: string | null; // ✅ Optional hint for mixed mode
+    subjectProfile?: SubjectProfile;
   }): Promise<QuestionModeResult> {
     console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
 
@@ -85,10 +88,32 @@ export class QuestionModeHandlerService {
     const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
       individualQuestions,
       classificationResult,
-      examPaperHint // ✅ Pass paper hint for consistent detection
+      examPaperHint, // ✅ Pass paper hint for consistent detection
+      undefined,
+      subjectProfile?.ocrStrategy === 'VISION_VERBATIM',
+      subjectProfile
     );
 
     const { detectionStats, detectionResults } = orchestrationResult;
+
+    const firstMatch = detectionResults.find((dr: any) => dr?.detectionResult?.found && dr?.detectionResult?.match)?.detectionResult?.match;
+    const rawQuestionTextHint = individualQuestions.map(q => q.text || '').join(' ').slice(0, 2000);
+    let resolvedProfile: SubjectProfile = subjectProfile || resolveSubjectProfile({
+      paperCode: examPaperHint || undefined,
+      rawTextHint: rawQuestionTextHint
+    });
+    if (firstMatch) {
+      const dbResolvedProfile = resolveSubjectProfile({
+        detectedSubject: (firstMatch as any).detectedSubject,
+        subject: firstMatch.subject && !/^(general|unknown|n\/a)$/i.test(String(firstMatch.subject).trim()) ? firstMatch.subject : undefined,
+        paperCode: firstMatch.paperCode,
+        paperTitle: firstMatch.paperTitle,
+        rawTextHint: rawQuestionTextHint
+      });
+      if (dbResolvedProfile.key !== resolvedProfile.key) {
+        resolvedProfile = dbResolvedProfile;
+      }
+    }
 
     // Log detection statistics
     MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats, detectionResults);
@@ -198,8 +223,10 @@ export class QuestionModeHandlerService {
       multipleQuestions: deduplicatedDetections.length > 1,
       // Legacy questions array for AI generation (still needed for response generation)
       questions: deduplicatedDetections.map(qd => {
-        // Use database question text if available, fallback to classification text
-        const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
+        // Use database question text if available, fallback to classification text, while preserving both
+        const extractedQuestionText = qd.questionText || '';
+        const databaseQuestionText = qd.detection.match?.databaseQuestionText || undefined;
+        const questionText = databaseQuestionText || extractedQuestionText;
 
         // Extract marking scheme and convert to plain text if needed
         let markingSchemePlainText = '';
@@ -230,6 +257,8 @@ export class QuestionModeHandlerService {
           // Use determined effective question number
           questionNumber: effectiveQuestionNumber,
           questionText: questionText,
+          extractedQuestionText,
+          ...(databaseQuestionText ? { databaseQuestionText } : {}),
           marks: metadata.marks || 0,
           markingScheme: markingSchemePlainText,
           examBoard: metadata.examBoard,
@@ -354,10 +383,16 @@ ${subTexts}
 ${guidanceSection}
 INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide excessive details or tutorials. Go straight to the point.`;
 
-        // Ensure we tell the AI to solve from first principles AND apply mark codes if missing
+        // Ensure we tell the AI to solve from first principles AND apply appropriate subject criteria if missing
+        const noSchemeInstruction = resolvedProfile.paradigm === 'LEVEL_OF_RESPONSE'
+          ? 'No official marking scheme available. Write a full-mark (Level 4 / Grade 9) exemplar response following GCSE English Assessment Objectives (e.g. [AO2 L4], [AO5 L4], [AO6 L4]) — NEVER use Maths codes ([M1], [A1], [B1]).'
+          : resolvedProfile.key === 'UNIVERSAL_BYOMS'
+            ? `No marking scheme available. Solve from first principles as an expert ${resolvedProfile.displayName} examiner using standard subject mark allocations.`
+            : 'No marking scheme available. You MUST solve from first principles as an expert examiner AND apply your own standard mark codes ([M1], [A1], [B1]).';
+
         const finalMarkingScheme = combinedMarkingScheme
           ? `[${marksDisplay}] ${ceilingDisplay}\n\n${combinedMarkingScheme}`
-          : `[${marksDisplay}] ${ceilingDisplay} No marking scheme available. You MUST solve from first principles as an expert examiner AND apply your own standard mark codes ([M1], [A1], [B1]).`;
+          : `[${marksDisplay}] ${ceilingDisplay} ${noSchemeInstruction}`;
 
 
         // REMOVED DUPLICATE LOGGING: Logs are now handled by MarkingServiceLocator only ("actual" prompt)
@@ -378,7 +413,8 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
           undefined, // onProgress
           false, // useOcrText
           usageTracker,
-          finalMarkingScheme // ✅ Use final scheme with total marks
+          finalMarkingScheme, // ✅ Use final scheme with total marks
+          resolvedProfile
         );
 
         // Reuse parent marks from comparison table (already calculated correctly)
@@ -524,7 +560,9 @@ INSTRUCTION: Provide a simple, clean solution to get full marks. Do not provide 
     // This enables "Right-Side Context" in follow-up chat
     try {
       const questionModeContext = await ChatContextBuilder.buildQuestionModeContext({
-        detectedQuestion: questionDetection
+        detectedQuestion: questionDetection,
+        subjectProfile: resolvedProfile,
+        examPaperHint
       });
       // console.log('📝 [QUESTION MODE] Built MarkingContext for Chat:', questionModeContext.totalQuestionsMarked, 'questions');
       aiMessage.markingContext = questionModeContext;

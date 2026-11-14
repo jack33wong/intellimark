@@ -7,7 +7,8 @@
 
 .markdown-p,
 .markdown-ol,
-ul {
+ul,
+.markdown-math-renderer .model_answer p {
   margin: 0.8em 0;
   line-height: 1.6;
   /* This is good for text, but bad for KaTeX */
@@ -191,8 +192,9 @@ ul {
   margin-left: 0.5em;
 }
 
-/* --- Mark Code Styling: Red and Right-Aligned --- */
-.marking-code {
+/* --- Mark Code Styling: Right-Aligned --- */
+.marking-code,
+.mark-code {
   float: right;
   color: var(--function-success);
   font-weight: 500;

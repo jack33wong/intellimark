@@ -47,11 +47,15 @@ export class MarkingController {
             res.write(':\n\n');
         }, 15000);
 
+        let capturedRemarkLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
+        let remarkModel = model;
+
         try {
             let requestedModel = model;
             if (!requestedModel || requestedModel.toUpperCase() === 'AUTO') {
                 requestedModel = 'FAST';
             }
+            remarkModel = requestedModel;
 
             const options = {
                 sessionId,
@@ -73,7 +77,6 @@ export class MarkingController {
 
             let remarkResult: any;
             let remarkError: any;
-            let capturedRemarkLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
 
             const result = await runWithLogCapture(
                 `remark-${sessionId}`,
@@ -98,25 +101,42 @@ export class MarkingController {
             }
 
             if (capturedRemarkLogs) {
-                await Promise.race([
-                    AdminAlertService.notifyMarkingLog({
-                        submissionId: `remark-${sessionId}`,
-                        sessionId,
-                        userId: (req as any).user?.uid,
-                        userEmail: (req as any).user?.email,
-                        model: requestedModel,
-                        isRemark: true,
-                        result: remarkResult,
-                        error: remarkError,
-                        ...capturedRemarkLogs,
-                    }),
-                    new Promise(resolve => setTimeout(resolve, 2500)),
-                ]);
+                const rawRemarkAiContent =
+                    (remarkResult as any)?.aiMessage?.content ||
+                    (remarkResult as any)?.message?.content ||
+                    undefined;
+
+                await AdminAlertService.notifyMarkingLog({
+                    submissionId: `remark-${sessionId}`,
+                    sessionId,
+                    userId: (req as any).user?.uid,
+                    userEmail: (req as any).user?.email,
+                    model: requestedModel,
+                    isRemark: true,
+                    turnType: 'REMARK',
+                    result: remarkResult,
+                    error: remarkError,
+                    aiResponse: typeof rawRemarkAiContent === 'string' ? rawRemarkAiContent : undefined,
+                    ...capturedRemarkLogs,
+                });
             }
 
             res.end();
         } catch (error: any) {
             console.error('❌ [CONTROLLER] Remark request failed:', error);
+            if (capturedRemarkLogs) {
+                await AdminAlertService.notifyMarkingLog({
+                    submissionId: `remark-${sessionId}`,
+                    sessionId,
+                    userId: (req as any).user?.uid,
+                    userEmail: (req as any).user?.email,
+                    model: remarkModel || 'FAST',
+                    isRemark: true,
+                    turnType: 'REMARK',
+                    error,
+                    ...(capturedRemarkLogs as { logsText: string; lineCount: number; durationMs: number; truncated: boolean }),
+                });
+            }
             const isCreditExhausted = error.message?.includes('exhausted your credits');
             const isInvalidScheme = error.message?.includes('INVALID_MARKING_SCHEME');
             if (!isCreditExhausted && !isInvalidScheme) {
@@ -233,6 +253,8 @@ export class MarkingController {
             res.write(':\n\n'); 
         }, 15000); // Ping every 15 seconds
 
+        let capturedMarkingLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
+
         try {
             // 3. Prepare Options
             let requestedModel = req.body.model;
@@ -314,8 +336,6 @@ export class MarkingController {
                 sendSseUpdate(res, data);
             };
 
-            let capturedMarkingLogs: { logsText: string; lineCount: number; durationMs: number; truncated: boolean } | null = null;
-
             const result = await runWithLogCapture(
                 submissionId,
                 () => MarkingPipelineService.executePipeline(
@@ -359,25 +379,65 @@ export class MarkingController {
             }
 
             if (capturedMarkingLogs) {
-                await Promise.race([
-                    AdminAlertService.notifyMarkingLog({
-                        submissionId,
-                        sessionId: result?.sessionId || finalSessionId,
-                        userId: userId || (isAuthenticated ? 'auth-user' : `guest:${userIP}`),
-                        userEmail: (req as any).user?.email,
-                        model: options.model || 'auto',
-                        isRemark: false,
-                        result,
-                        ...capturedMarkingLogs,
-                    }),
-                    new Promise(resolve => setTimeout(resolve, 2500)),
-                ]);
+                const resolvedUid = userId || (isAuthenticated ? 'auth-user' : `guest:${userIP}`);
+                let uploadedFiles = AdminAlertService.extractUploadedFileLinksFromResult(result);
+                if (uploadedFiles.length === 0 && files?.length > 0) {
+                    uploadedFiles = await Promise.race([
+                        AdminAlertService.uploadFilesForLog(files, resolvedUid),
+                        new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 2500)),
+                    ]);
+                }
+
+                const rawAiContent =
+                    (result as any)?.message?.content ||
+                    (result as any)?.aiMessage?.content ||
+                    (result as any)?.submissionResult?.aiMessage?.content ||
+                    undefined;
+
+                await AdminAlertService.notifyMarkingLog({
+                    submissionId,
+                    sessionId: result?.sessionId || finalSessionId,
+                    userId: resolvedUid,
+                    userEmail: (req as any).user?.email,
+                    model: options.model || 'auto',
+                    isRemark: false,
+                    turnType: (result as any)?.mode === 'Question' ? 'QUESTION_MODE' : 'MARKING',
+                    result,
+                    userInput: options.customText || undefined,
+                    aiResponse: typeof rawAiContent === 'string' ? rawAiContent : undefined,
+                    uploadedFiles,
+                    ...capturedMarkingLogs,
+                });
             }
 
             res.end();
 
         } catch (error: any) {
             console.error(`❌ [CONTROLLER] Marking request failed: ${error.message}`);
+
+            if (capturedMarkingLogs) {
+                const resolvedUid = finalUserId || (req as any).user?.uid || `guest:${req.ip || '0.0.0.0'}`;
+                let uploadedFiles: any[] = [];
+                if (files?.length > 0) {
+                    uploadedFiles = await Promise.race([
+                        AdminAlertService.uploadFilesForLog(files, resolvedUid),
+                        new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 2500)),
+                    ]);
+                }
+                await AdminAlertService.notifyMarkingLog({
+                    submissionId,
+                    sessionId: finalSessionId || sessionId,
+                    userId: resolvedUid,
+                    userEmail: (req as any).user?.email,
+                    model: finalModel || 'auto',
+                    isRemark: false,
+                    turnType: 'MARKING',
+                    error,
+                    userInput: req.body?.customText || undefined,
+                    uploadedFiles,
+                    ...(capturedMarkingLogs as { logsText: string; lineCount: number; durationMs: number; truncated: boolean }),
+                });
+            }
             
             const isCreditExhausted = error.message?.includes('exhausted your credits');
             const isLegacyUserFixable =

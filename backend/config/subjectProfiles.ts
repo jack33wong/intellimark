@@ -243,8 +243,10 @@ export function resolveSubjectProfile(hints: SubjectResolutionHints = {}): Subje
     /explorations\s+in\s+creative\s+reading\s+and\s+writing/i.test(combined) ||
     /writers['’]?\s+viewpoints\s+and\s+perspectives/i.test(combined) ||
     /how\s+(does|has)\s+the\s+writer\s+(use|used|structured)\s+(language|structure)/i.test(combined) ||
-    /to\s+what\s+extent\s+do\s+you\s+agree[\s\S]{0,120}(writer|methods|reader|statement)/i.test(combined) ||
-    /write\s+a\s+(description|story|narrative|speech|letter|article|leaflet|essay)\s+(of|about|arguing|to|for|with|set|based|as\s+suggested\s+by)/i.test(combined) ||
+    /(to\s+what\s+extent|how\s+far)\s+do\s+you\s+agree[\s\S]{0,120}(writer|methods|reader|statement)/i.test(combined) ||
+    /evaluate\s+how\s+the\s+writer/i.test(combined) ||
+    /write\s+an?\s+(description|story|narrative|speech|letter|article|leaflet|essay|report|review)(?:[\s.,:;!?]+(?:of|about|arguing|explaining|persuading|describing|to|for|with|set|based|in\s+which|your|as\s+suggested\s+by)|\s*$)/i.test(combined) ||
+    /\b(list\s+four\s+things|source\s+a\s+and\s+source\s+b|compare\s+how\s+the\s+writers)\b/i.test(combined) ||
     /\b(ao1|ao2|ao3|ao4|ao5|ao6)\b[\s\S]{0,80}\b(level\s+[1-4]|perceptive|spag|technical\s+accuracy)\b/i.test(combined)
   ) {
     return SUBJECT_PROFILES.ENGLISH_LANGUAGE;
@@ -412,6 +414,19 @@ export function buildUniversalEnglishRubricFallback(params: {
 - Level 1 (Bottom Band, ~1-25% of marks): Simple, limited narrative comment; simple references.`;
   }
 
+function computeLorBands(max: number) {
+  const safeMax = Math.max(4, max);
+  const l1Max = Math.max(1, Math.round(safeMax * 0.25));
+  const l2Max = Math.max(l1Max + 1, Math.round(safeMax * 0.5));
+  const l3Max = Math.min(safeMax - 1, Math.max(l2Max + 1, Math.round(safeMax * 0.75)));
+  return {
+    l1: `1-${l1Max}`,
+    l2: `${l1Max + 1}-${l2Max}`,
+    l3: `${l2Max + 1}-${l3Max}`,
+    l4: `${l3Max + 1}-${safeMax}`
+  };
+}
+
   // 1. Detect Creative / Transactional Writing (Section B / Q5 / 24-40 marks)
   const isWritingTask =
     totalMarks >= 24 ||
@@ -424,17 +439,19 @@ export function buildUniversalEnglishRubricFallback(params: {
     const effectiveTotal = totalMarks >= 24 ? totalMarks : 40;
     const ao5Max = effectiveTotal === 40 ? 24 : Math.round(effectiveTotal * 0.6);
     const ao6Max = effectiveTotal - ao5Max;
+    const ao5Bands = computeLorBands(ao5Max);
+    const ao6Bands = computeLorBands(ao6Max);
     return `[UNIVERSAL GCSE ENGLISH LANGUAGE WRITING RUBRIC — DUAL-AO (${effectiveTotal} Marks = AO5: ${ao5Max} marks + AO6: ${ao6Max} marks)]
 1. AO5 Content & Organisation (${ao5Max} marks) — Radar Axis: "AO5 Content & Org":
-   - Level 4 (Compelling, Convincing | ${Math.round(ao5Max * 0.76)}-${ao5Max} marks): Communication is convincing and compelling; tone, style, and register assuredly matched to purpose and audience; extensive vocabulary with sustained crafting of linguistic devices; varied and inventive structural features (e.g. cyclical structure, shifts in focus/pace) with fluently linked paragraphs.
-   - Level 3 (Consistent, Clear | ${Math.round(ao5Max * 0.51)}-${Math.round(ao5Max * 0.75)} marks): Communication is consistently clear and effective; tone/register matched to audience; increasingly sophisticated vocabulary and successful linguistic devices; coherent paragraphs with integrated discourse markers.
-   - Level 2 (Some Success | ${Math.round(ao5Max * 0.26)}-${Math.round(ao5Max * 0.5)} marks): Communicates with some sustained success; attempts to match tone/register and vary vocabulary; some linked ideas and paragraphing.
-   - Level 1 (Simple, Limited | 1-${Math.round(ao5Max * 0.25)} marks): Simple communication and vocabulary; limited structural features or random paragraphing.
+   - Level 4 (Compelling, Convincing | ${ao5Bands.l4} marks): Communication is convincing and compelling; tone, style, and register assuredly matched to purpose and audience; extensive vocabulary with sustained crafting of linguistic devices; varied and inventive structural features (e.g. cyclical structure, shifts in focus/pace) with fluently linked paragraphs.
+   - Level 3 (Consistent, Clear | ${ao5Bands.l3} marks): Communication is consistently clear and effective; tone/register matched to audience; increasingly sophisticated vocabulary and successful linguistic devices; coherent paragraphs with integrated discourse markers.
+   - Level 2 (Some Success | ${ao5Bands.l2} marks): Communicates with some sustained success; attempts to match tone/register and vary vocabulary; some linked ideas and paragraphing.
+   - Level 1 (Simple, Limited | ${ao5Bands.l1} marks): Simple communication and vocabulary; limited structural features or random paragraphing.
 2. AO6 Technical Accuracy / SPaG (${ao6Max} marks) — Radar Axis: "AO6 Technical SPaG":
-   - Level 4 (${Math.round(ao6Max * 0.76)}-${ao6Max} marks): Sentence demarcation consistently secure; wide range of ambitious punctuation (colons, semicolons, dashes) and sentence forms used for effect; high accuracy in spelling including ambitious vocabulary.
-   - Level 3 (${Math.round(ao6Max * 0.51)}-${Math.round(ao6Max * 0.75)} marks): Sentence demarcation mostly secure; range of punctuation and sentence forms used mostly with success; generally accurate spelling of complex words.
-   - Level 2 (${Math.round(ao6Max * 0.26)}-${Math.round(ao6Max * 0.5)} marks): Some control of punctuation and sentence variety; accurate basic spelling.
-   - Level 1 (1-${Math.round(ao6Max * 0.25)} marks): Occasional sentence demarcation; simple range of sentence forms.`;
+   - Level 4 (${ao6Bands.l4} marks): Sentence demarcation consistently secure; wide range of ambitious punctuation (colons, semicolons, dashes) and sentence forms used for effect; high accuracy in spelling including ambitious vocabulary.
+   - Level 3 (${ao6Bands.l3} marks): Sentence demarcation mostly secure; range of punctuation and sentence forms used mostly with success; generally accurate spelling of complex words.
+   - Level 2 (${ao6Bands.l2} marks): Some control of punctuation and sentence variety; accurate basic spelling.
+   - Level 1 (${ao6Bands.l1} marks): Occasional sentence demarcation; simple range of sentence forms.`;
   }
 
   // 2. Detect 4-Mark Point-Based Retrieval (Q1)
@@ -461,10 +478,11 @@ export function buildUniversalEnglishRubricFallback(params: {
           ? 'AO2 Structure'
           : 'AO2 Language';
   const effectiveMarks = totalMarks > 0 ? totalMarks : (isEvaluation ? 20 : isComparison ? 16 : 8);
+  const readingBands = computeLorBands(effectiveMarks);
 
   return `[UNIVERSAL GCSE ENGLISH LANGUAGE ${targetAo} LEVEL-OF-RESPONSE RUBRIC (${effectiveMarks} Marks — Radar Axis: "${targetAxis}")]
-- Level 4 (Perceptive, Detailed | ${Math.round(effectiveMarks * 0.76)}-${effectiveMarks} marks): Shows perceptive, detailed understanding; analyses subtle effects of the writer's choices/methods; selects judicious textual quotations; makes sophisticated and accurate use of subject terminology.
-- Level 3 (Clear, Relevant | ${Math.round(effectiveMarks * 0.51)}-${Math.round(effectiveMarks * 0.75)} marks): Shows clear, explained understanding; explains clearly the effects of the writer's choices/methods; selects relevant textual quotations; makes clear and accurate use of subject terminology.
-- Level 2 (Some, Attempts | ${Math.round(effectiveMarks * 0.26)}-${Math.round(effectiveMarks * 0.5)} marks): Shows some understanding; attempts to comment on the effect of methods; selects some appropriate textual references; some use of subject terminology.
-- Level 1 (Simple, Limited | 1-${Math.round(effectiveMarks * 0.25)} marks): Shows simple awareness; offers simple descriptive/narrative comment; selects simple references.`;
+- Level 4 (Perceptive, Detailed | ${readingBands.l4} marks): Shows perceptive, detailed understanding; analyses subtle effects of the writer's choices/methods; selects judicious textual quotations; makes sophisticated and accurate use of subject terminology.
+- Level 3 (Clear, Relevant | ${readingBands.l3} marks): Shows clear, explained understanding; explains clearly the effects of the writer's choices/methods; selects relevant textual quotations; makes clear and accurate use of subject terminology.
+- Level 2 (Some, Attempts | ${readingBands.l2} marks): Shows some understanding; attempts to comment on the effect of methods; selects some appropriate textual references; some use of subject terminology.
+- Level 1 (Simple, Limited | ${readingBands.l1} marks): Shows simple awareness; offers simple descriptive/narrative comment; selects simple references.`;
 }

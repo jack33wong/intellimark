@@ -217,6 +217,8 @@ export interface DetectedQuestion {
     questions: Array<{
       questionNumber: string; // e.g., "21" (just the number, not unique key)
       questionText: string;
+      extractedQuestionText?: string;
+      databaseQuestionText?: string;
       marks: number; // Marks for this individual question
       sourceImageIndex?: number; // Which image this question came from
 
@@ -227,6 +229,17 @@ export interface DetectedQuestion {
         comments?: string;
       }>;
     }>;
+  }>;
+
+  // Root-level questions (populated in Question Mode, including when examPapers is empty)
+  questions?: Array<{
+    questionNumber: string;
+    questionText: string;
+    extractedQuestionText?: string;
+    databaseQuestionText?: string;
+    marks: number;
+    sourceImageIndex?: number;
+    markingScheme?: any;
   }>;
 }
 
@@ -337,6 +350,7 @@ export interface UnifiedMessage {
 // Context Types for Chat
 export interface MarkingContext {
   sessionType: 'Marking' | 'Question' | 'Mixed';
+  detectedSubject?: string;
   totalQuestionsMarked: number;
   overallScore: {
     awarded: number;
@@ -380,6 +394,8 @@ export interface QuestionPart {
 export interface MarkingContextQuestionResult {
   number: string;            // "1", "3", "8", "21"
   text: string;              // Full question text
+  extractedQuestionText?: string; // Actual OCR/classification text from student's uploaded image
+  databaseQuestionText?: string;  // Matched database question text (if DB match occurred)
   scheme: string;            // Marking scheme text
   totalMarks: number;        // Max marks available
   earnedMarks: number;       // Marks student got

@@ -18,6 +18,7 @@ import {
 } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 import { validateModel } from '../../config/aiModels.js';
+import type { SubjectProfile } from '../../config/subjectProfiles.js';
 
 
 export class MarkingServiceLocator {
@@ -61,10 +62,11 @@ export class MarkingServiceLocator {
     model: ModelType,
     contextSummary?: string,
     tracker?: UsageTracker, // UsageTracker
-    mode?: string // NEW: Current chat mode (model-answer, marking-scheme, etc)
+    mode?: string, // NEW: Current chat mode (model-answer, marking-scheme, etc)
+    subjectProfile?: SubjectProfile
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens: number; outputTokens: number }> {
 
-    let systemPrompt = getPrompt('marking.contextual.system');
+    let systemPrompt = getPrompt('marking.contextual.system', subjectProfile);
 
     // [MODE-AWARENESS] Inject mode flag for the prompt selector
     if (mode === 'model-answer') {
@@ -83,10 +85,38 @@ export class MarkingServiceLocator {
 
     const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
 
+    const logUserPrompt = process.env.LOG_AI_MARKING_USER_PROMPT === 'true';
+    const logSystemPrompt = process.env.LOG_AI_MARKING_SYSTEM_PROMPT === 'true';
+    const logResponse = process.env.LOG_AI_MARKING_RESPONSE === 'true';
+
+    if (logUserPrompt || logSystemPrompt) {
+      console.log('\n🚀 [PROMPT-ALIGNMENT] FOLLOW-UP CHAT PROMPT SENT TO MODEL:');
+      console.log('==================================================================');
+      if (logSystemPrompt) {
+        console.log('SYSTEM PROMPT:\n', systemPrompt);
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      } else {
+        console.log('SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)');
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      }
+      if (logUserPrompt) {
+        console.log('USER PROMPT:\n', userPrompt);
+      }
+      console.log('==================================================================\n');
+    }
+
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       // Pass tracker and phase to get real token counts
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, 'questionMode');
+
+      if (logResponse) {
+        console.log('\n========================================');
+        console.log('[LOG-DEBUG] Raw AI FOLLOW-UP CHAT Response');
+        console.log('----------------------------------------');
+        console.log(response.content);
+        console.log('========================================\n');
+      }
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
@@ -129,7 +159,8 @@ export class MarkingServiceLocator {
     onProgress?: (data: any) => void,
     useOcrText: boolean = false,
     tracker?: UsageTracker,  // UsageTracker (optional)
-    markingScheme?: string  // NEW: Marking scheme for model answer generation
+    markingScheme?: string,  // NEW: Marking scheme for model answer generation
+    subjectProfile?: SubjectProfile
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
 
     // Debug mode: Return mock response
@@ -154,13 +185,38 @@ export class MarkingServiceLocator {
 
     const isQuestionOnly = category === "questionOnly";
     const systemPrompt = isQuestionOnly
-      ? getPrompt('marking.questionOnly.system')
-      : getPrompt('modelAnswer.system')
+      ? getPrompt('marking.questionOnly.system', subjectProfile)
+      : getPrompt('modelAnswer.system');
+
+    const defaultNoSchemeHint = subjectProfile?.paradigm === 'LEVEL_OF_RESPONSE'
+      ? 'No official marking scheme available. Write a Grade 9 / Level 4 exemplar response following GCSE English Assessment Objectives.'
+      : subjectProfile?.key === 'UNIVERSAL_BYOMS'
+        ? `No marking scheme available. Solve as an expert ${subjectProfile.displayName} examiner.`
+        : 'No marking scheme available. Solve as a mathematician.';
 
     const userPrompt = isQuestionOnly
       // If no marking scheme (detection failed), use default message which instructs AI to solve without scheme
-      ? getPrompt('marking.questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
+      ? getPrompt('marking.questionOnly.user', message, markingScheme || defaultNoSchemeHint, subjectProfile)
       : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
+
+    const logUserPrompt = process.env.LOG_AI_MARKING_USER_PROMPT === 'true';
+    const logSystemPrompt = process.env.LOG_AI_MARKING_SYSTEM_PROMPT === 'true';
+
+    if (logUserPrompt || logSystemPrompt) {
+      console.log(`\n🚀 [PROMPT-ALIGNMENT] ${isQuestionOnly ? 'QUESTION MODE' : 'CHAT/MODEL-ANSWER'} PROMPT SENT TO MODEL:`);
+      console.log('==================================================================');
+      if (logSystemPrompt) {
+        console.log('SYSTEM PROMPT:\n', systemPrompt);
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      } else {
+        console.log('SYSTEM PROMPT: [REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)');
+        if (logUserPrompt) console.log('------------------------------------------------------------------');
+      }
+      if (logUserPrompt) {
+        console.log('USER PROMPT:\n', userPrompt);
+      }
+      console.log('==================================================================\n');
+    }
 
 
     try {
@@ -298,6 +354,14 @@ export class MarkingServiceLocator {
         const openaiModelName = model.toString().replace('openai-', '');
         const result = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, openaiModelName, false, tracker, 'marking');
 
+        if (process.env.LOG_AI_MARKING_RESPONSE === 'true') {
+          console.log('\n========================================');
+          console.log('[LOG-DEBUG] Raw AI OpenAI TEXT Response');
+          console.log('----------------------------------------');
+          console.log(result.content);
+          console.log('========================================\n');
+        }
+
         return {
           response: result.content,
           apiUsed: `OpenAI ${openaiModelName}`,
@@ -316,6 +380,14 @@ export class MarkingServiceLocator {
       const phase = isQuestionOnly ? 'questionMode' : 'marking';
 
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, phase);
+
+      if (process.env.LOG_AI_MARKING_RESPONSE === 'true') {
+        console.log('\n========================================');
+        console.log(`[LOG-DEBUG] Raw AI ${isQuestionOnly ? 'QUESTION MODE' : 'TEXT'} Response`);
+        console.log('----------------------------------------');
+        console.log(result.content);
+        console.log('========================================\n');
+      }
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);

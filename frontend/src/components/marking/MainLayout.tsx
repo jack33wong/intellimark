@@ -175,16 +175,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     return [...currentSession.messages].reverse().find(m => (m as any).markingContext);
   }, [currentSession]);
 
-  // Determine Detected Question for Ribbon logic (supports both past papers and generic papers)
+  // Determine Detected Question for Ribbon logic (supports both past papers and generic/unmatched questions)
   const activeDetectedQuestion = React.useMemo(() => {
     if (!currentSession) return null;
-    if (currentSession.detectedQuestion?.examPapers?.length || currentSession.detectedQuestion?.found) {
+    const hasDetectedQuestionData = (dq: any) =>
+      Boolean(dq?.examPapers?.length || dq?.questions?.length || dq?.found);
+
+    if (hasDetectedQuestionData(currentSession.detectedQuestion)) {
       return currentSession.detectedQuestion;
     }
 
     if (currentSession.messages) {
       const msgWithQuestion = currentSession.messages.find(
-        (m: any) => m.detectedQuestion?.examPapers?.length || m.detectedQuestion?.found
+        (m: any) => hasDetectedQuestionData(m.detectedQuestion)
       );
       if (msgWithQuestion) return (msgWithQuestion as any).detectedQuestion;
     }

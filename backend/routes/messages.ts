@@ -16,7 +16,8 @@ import UsageTracker from '../utils/UsageTracker.js';
 import { GuestUsageService } from '../services/guestUsageService.js';
 import SubscriptionService from '../services/subscriptionService.js';
 import { getFirebaseAuth, getFirestore, getUserRole } from '../config/firebase.js';
-import { AdminAlertService } from '../services/AdminAlertService.js';
+import { AdminAlertService, type SessionDigestUploadedFile } from '../services/AdminAlertService.js';
+import { runWithLogCapture, type CapturedLogResult } from '../utils/RequestLogCapture.js';
 
 const router = express.Router();
 
@@ -133,12 +134,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Instantiate UsageTracker for this request
     const usageTracker = new UsageTracker();
 
-    // Use centralized model configuration for 'auto'
-    let resolvedModel = model;
-    if (model === 'auto') {
-      const { getDefaultModel } = await import('../config/aiModels.js');
-      resolvedModel = getDefaultModel();
-    }
+    // Resolve tier aliases ('auto', 'fast', 'thinking', etc.) to the canonical Gemini model ID
+    const { resolveModelTier } = await import('../config/aiModels.js');
+    const resolvedModel = resolveModelTier(model || 'auto');
 
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -289,8 +287,19 @@ router.post('/chat', optionalAuth, async (req, res) => {
       }
     }
 
+    let capturedChatLogs: CapturedLogResult | null = null;
     try {
-      if (imageData) {
+      await runWithLogCapture(
+        `chat-${currentSessionId || Date.now()}`,
+        async () => {
+          if (process.env.LOG_AI_MARKING_USER_PROMPT === 'true') {
+            console.log('\n💬 [CHAT-INPUT] FULL STUDENT INPUT:');
+            console.log(`Mode: ${followUpMode || mode || 'chat'} | Session: ${currentSessionId} | ContextQ: ${contextQuestionId || 'all'}`);
+            console.log(message || (imageData ? '[Image uploaded without text]' : '[Empty]'));
+            console.log('------------------------------------------------------------------');
+          }
+
+          if (imageData) {
         // For messages with images, use image-aware chat response
         // Note: passing usageTracker as the 8th argument
         const aiResult = await MarkingServiceLocator.generateChatResponse(
@@ -344,6 +353,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // First get existing session messages for context
         let chatHistory: any[] = [];
         contextSummary = undefined; // Reset for this block
+        let resolvedSubjectProfile: any = undefined;
 
         if (currentSessionId && isAuthenticated) {
           try {
@@ -401,6 +411,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
                 // Generate the full prompt including marking details + history (filtered by question if active)
                 contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext, contextQuestionId);
+                resolvedSubjectProfile = ChatContextBuilder.resolveSubjectProfile(markingContext, contextQuestionId);
 
                 // Update progress tracker to indicate context mode
                 progressTracker.updateStepDescription('generating_response', 'Thinking with marking context...');
@@ -417,6 +428,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
           try {
             const { ChatContextBuilder } = await import('../services/marking/ChatContextBuilder.js');
             contextSummary = ChatContextBuilder.formatContextAsPrompt(req.body.markingContext, contextQuestionId);
+            resolvedSubjectProfile = ChatContextBuilder.resolveSubjectProfile(req.body.markingContext, contextQuestionId);
 
             if (progressTracker) {
               progressTracker.updateStepDescription('generating_response', 'Thinking with provided context...');
@@ -439,7 +451,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           resolvedModel,
           contextSummary, // Pass the rich context summary
           usageTracker,    // Pass usage tracker
-          mode || 'chat' // Pass mode for persona weighting
+          mode || 'chat', // Pass mode for persona weighting
+          resolvedSubjectProfile // Pass resolved SubjectProfile for subject-aware follow-up prompt
         );
         aiResponse = contextualResult.response;
         apiUsed = contextualResult.apiUsed;
@@ -448,8 +461,27 @@ router.post('/chat', optionalAuth, async (req, res) => {
         progressTracker.completeCurrentStep();
         progressTracker.finish();
       }
+        },
+        (captured) => {
+          capturedChatLogs = captured;
+        }
+      );
     } catch (error) {
       console.error('❌ AI service failed:', error);
+      if (capturedChatLogs) {
+        const errLogs = capturedChatLogs as CapturedLogResult;
+        AdminAlertService.recordSessionTurn({
+          sessionId: currentSessionId,
+          turnType: 'FOLLOW_UP_CHAT',
+          userId: isAuthenticated ? userId : `guest:${userIP}`,
+          userEmail: req.user?.email,
+          model: resolvedModel,
+          error,
+          userInput: message || (imageData ? '[Image uploaded]' : ''),
+          uploadedFiles: imageLink ? [{ filename: 'follow-up-image.jpg', url: imageLink }] : [],
+          ...errLogs,
+        });
+      }
       throw error;
     }
 
@@ -686,6 +718,35 @@ router.post('/chat', optionalAuth, async (req, res) => {
         isPastPaper: false
       };
 
+    }
+
+    if (capturedChatLogs) {
+      const chatLogs = capturedChatLogs as CapturedLogResult;
+      const chatUploadedFiles: SessionDigestUploadedFile[] = [];
+      if (imageLink) {
+        chatUploadedFiles.push({ filename: 'follow-up-image.jpg', url: imageLink });
+      } else if (!isAuthenticated && imageData) {
+        const uploadedGuestImg = await Promise.race([
+          AdminAlertService.uploadBase64ImageForLog(imageData, `guest:${userIP}`),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+        ]);
+        if (uploadedGuestImg) {
+          chatUploadedFiles.push(uploadedGuestImg);
+        }
+      }
+
+      AdminAlertService.recordSessionTurn({
+        sessionId: currentSessionId,
+        turnType: 'FOLLOW_UP_CHAT',
+        userId: isAuthenticated ? userId : `guest:${userIP}`,
+        userEmail: req.user?.email,
+        sessionTitle: sessionData?.title || sessionTitle,
+        model: resolvedModel,
+        userInput: message || (imageData ? '[Image uploaded]' : ''),
+        aiResponse: finalResponse,
+        uploadedFiles: chatUploadedFiles,
+        ...chatLogs,
+      });
     }
 
     // Return consistent response format (same as process-single)

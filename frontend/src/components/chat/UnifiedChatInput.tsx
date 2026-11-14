@@ -620,6 +620,19 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         return file;
       }
 
+      // Skip re-encoding standard browser images already under 1.5 MB:
+      // avoids multi-second Web Worker / canvas overhead and preserves lossless/original text clarity.
+      const MAX_UNCOMPRESSED_BYTES = 1.5 * 1024 * 1024;
+      const isStandardWebImage =
+        file.type === 'image/jpeg' ||
+        file.type === 'image/png' ||
+        file.type === 'image/webp' ||
+        (!file.type && /\.(jpe?g|png|webp)$/i.test(file.name));
+      if (origSize <= MAX_UNCOMPRESSED_BYTES && isStandardWebImage) {
+        (file as any)._originalSize = origSize;
+        return file;
+      }
+
       const options = {
         maxSizeMB: 1.5,
         maxWidthOrHeight: 2500,

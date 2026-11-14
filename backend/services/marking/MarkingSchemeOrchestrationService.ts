@@ -10,6 +10,11 @@
 import { logDetectionAudit, getQuestionSortValue, cleanSubjectAndQualification } from './MarkingHelpers.js';
 import { questionDetectionService } from './questionDetectionService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart, combineQuestionAndPart } from '../../utils/TextNormalizationUtils.js';
+import {
+  resolveSubjectProfile,
+  buildUniversalEnglishRubricFallback,
+  type SubjectProfile
+} from '../../config/subjectProfiles.js';
 
 // --- CONFIGURATION ---
 const GENERIC_EXAMINER_INSTRUCTION = `
@@ -123,7 +128,8 @@ export class MarkingSchemeOrchestrationService {
     classificationResult: any,
     examPaperHint?: string | null,
     inputMarkingScheme?: any,
-    guardContaminatedStems?: boolean
+    guardContaminatedStems?: boolean,
+    subjectProfile?: SubjectProfile
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
 
@@ -575,7 +581,14 @@ export class MarkingSchemeOrchestrationService {
         if (process.env.LOG_QUESTION_DETECTION === 'true') {
           console.log(`   🔄 [HINT FALLBACK] Hint "${examPaperHint}" did not yield strong consensus (dominantPaper=${dominantPaper || 'NONE'}, detectionRate=${(detectionRate * 100).toFixed(1)}%). Restarting in Global Search...`);
         }
-        return this.orchestrateMarkingSchemeLookup(individualQuestions, classificationResult, null, inputMarkingScheme);
+        return this.orchestrateMarkingSchemeLookup(
+          individualQuestions,
+          classificationResult,
+          null,
+          inputMarkingScheme,
+          guardContaminatedStems,
+          subjectProfile
+        );
       }
     }
 
@@ -699,19 +712,62 @@ export class MarkingSchemeOrchestrationService {
       if (!item.detectionResult.match) {
         const qNum = item.question.questionNumber || '1';
         const detectedMarks = this.smartEstimateMaxMarks(item.question.text);
-        const sequentialRubric = this.generateSequentialRubric(detectedMarks);
-        const subQMarks = { [qNum]: sequentialRubric };
+        const effectiveProfile = (subjectProfile && subjectProfile.key !== 'MATHS')
+          ? subjectProfile
+          : resolveSubjectProfile({
+              paperCode: examPaperHint || undefined,
+              rawTextHint: item.question.text
+            });
 
-        if (process.env.LOG_QUESTION_DETECTION === 'true') {
-          console.log(`\n🔴 [GENERIC MODE ACTIVATED] Q${qNum}: No match found, creating fallback scheme with ${detectedMarks} marks`);
+        if (effectiveProfile.paradigm === 'LEVEL_OF_RESPONSE') {
+          const universalEnglishGuidance = buildUniversalEnglishRubricFallback({
+            subjectKey: effectiveProfile.key,
+            questionNumber: qNum,
+            questionText: item.question.text,
+            totalMarks: detectedMarks
+          });
+
+          if (process.env.LOG_QUESTION_DETECTION === 'true') {
+            console.log(`\n🔴 [GENERIC MODE ACTIVATED - ${effectiveProfile.key}] Q${qNum}: No match found, using Level-of-Response English rubric (${detectedMarks} marks)`);
+          }
+
+          item.detectionResult.match = {
+            board: 'Unknown',
+            qualification: 'GCSE',
+            paperCode: 'Generic Question',
+            examSeries: 'N/A',
+            tier: 'N/A',
+            subject: effectiveProfile.displayName,
+            detectedSubject: effectiveProfile.key,
+            paperTitle: `${effectiveProfile.displayName} (No Match)`,
+            questionNumber: qNum,
+            confidence: 0,
+            marks: detectedMarks,
+            parentQuestionMarks: detectedMarks,
+            isGeneric: true,
+            markingScheme: {
+              questionMarks: { marks: [], subQuestionMarks: { [qNum]: [] } },
+              generalMarkingGuidance: universalEnglishGuidance
+            }
+          };
+          item.detectionResult.found = false;
+        } else {
+          const sequentialRubric = this.generateSequentialRubric(detectedMarks);
+          const subQMarks = { [qNum]: sequentialRubric };
+
+          if (process.env.LOG_QUESTION_DETECTION === 'true') {
+            console.log(`\n🔴 [GENERIC MODE ACTIVATED] Q${qNum}: No match found, creating fallback scheme with ${detectedMarks} marks`);
+          }
+
+          item.detectionResult.match = {
+            board: 'Unknown', qualification: 'General', paperCode: 'Generic Question', examSeries: 'N/A', tier: 'N/A',
+            subject: effectiveProfile.key === 'UNIVERSAL_BYOMS' ? effectiveProfile.displayName : 'General',
+            ...(effectiveProfile.key === 'UNIVERSAL_BYOMS' ? { detectedSubject: effectiveProfile.key } : {}),
+            paperTitle: 'General (No Match)', questionNumber: qNum, confidence: 0, marks: detectedMarks, parentQuestionMarks: detectedMarks, isGeneric: true,
+            markingScheme: { questionMarks: { marks: sequentialRubric, subQuestionMarks: subQMarks }, generalMarkingGuidance: GENERIC_EXAMINER_INSTRUCTION }
+          };
+          item.detectionResult.found = false;
         }
-
-        item.detectionResult.match = {
-          board: 'Unknown', qualification: 'General', paperCode: 'Generic Question', examSeries: 'N/A', tier: 'N/A', subject: 'General',
-          paperTitle: 'General (No Match)', questionNumber: qNum, confidence: 0, marks: detectedMarks, parentQuestionMarks: detectedMarks, isGeneric: true,
-          markingScheme: { questionMarks: { marks: sequentialRubric, subQuestionMarks: subQMarks }, generalMarkingGuidance: GENERIC_EXAMINER_INSTRUCTION }
-        };
-        item.detectionResult.found = false;
       }
     }
 

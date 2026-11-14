@@ -188,6 +188,22 @@ export class QuestionDetectionService {
         ? this.filterPapersByHint(allExamPapers, cleanPaperHint)
         : [];
 
+      const hintSeries = cleanPaperHint ? this.extractSeriesHint(cleanPaperHint) : { year: null, season: null };
+      if (cleanPaperHint && hintSeries.year && primaryPapers.length === 0) {
+        return {
+          found: false,
+          message: `No exam paper found for specified series/year (${hintSeries.year})`,
+          hintMetadata: {
+            hintUsed: cleanPaperHint,
+            matchedPapersCount: 0,
+            thresholdRelaxed: false,
+            deepSearchActive: false,
+            poolSize: 0,
+            auditTrail: []
+          }
+        };
+      }
+
       const isNarrowSearch = primaryPapers.length > 0;
       const searchPool = isNarrowSearch ? primaryPapers : allExamPapers;
 
@@ -577,6 +593,27 @@ export class QuestionDetectionService {
   }
 
   // --- Helper Methods ---
+  private extractSeriesHint(text: string): { year: string | null; season: string | null } {
+    const lower = (text || '').toLowerCase();
+    let year: string | null = null;
+    const fullYearMatch = lower.match(/\b(20\d{2})\b/);
+    if (fullYearMatch) {
+      year = fullYearMatch[1];
+    } else {
+      const shortYearMatch = lower.match(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|summer|winter|autumn|spring)[-/\s]*(\d{2})\b/);
+      if (shortYearMatch) {
+        year = `20${shortYearMatch[1]}`;
+      }
+    }
+
+    let season: string | null = null;
+    if (/\b(june?|may|summer)\b/.test(lower)) season = 'summer';
+    else if (/\bnov(?:ember)?\b/.test(lower)) season = 'november';
+    else if (/\bjan(?:uary)?\b/.test(lower)) season = 'january';
+
+    return { year, season };
+  }
+
   private filterPapersByHint(papers: any[], hint: string): any[] {
     const normalizedHint = hint.toLowerCase().trim();
     if (!normalizedHint) return papers;
@@ -595,6 +632,7 @@ export class QuestionDetectionService {
     // Extract explicit 4+ char paper code root if present in the hint (e.g. "8462" from "8462/1H", "1MA1" from "1MA1/2H")
     const codePrefixMatch = normalizedHint.match(/\b([0-9]{4}|[0-9][a-z]{2}[0-9]|[a-z][0-9]{3})(?:\/[0-9a-z]+)?\b/i);
     const requiredCodePrefix = codePrefixMatch ? codePrefixMatch[1].toLowerCase() : null;
+    const { year: requiredYear, season: requiredSeason } = this.extractSeriesHint(normalizedHint);
 
     const processedHint = normalizeForSearch(normalizedHint);
     const rawKeywords = processedHint.split(/\s+/).filter(k => k.length > 0 && /[a-z0-9]/i.test(k));
@@ -609,6 +647,17 @@ export class QuestionDetectionService {
       if (requiredCodePrefix) {
         const dbCode = String(metadata.exam_code || metadata.paper_code || '').toLowerCase();
         if (dbCode && !dbCode.includes(requiredCodePrefix)) {
+          return { paper, score: 0 };
+        }
+      }
+
+      // Hard-block mismatched exam year/series when explicitly present in the hint (e.g. Jun26 must NEVER match June 2025)
+      if (requiredYear || requiredSeason) {
+        const dbSeries = this.extractSeriesHint(String(metadata.exam_series || paper.exam_series || ''));
+        if (requiredYear && dbSeries.year && dbSeries.year !== requiredYear) {
+          return { paper, score: 0 };
+        }
+        if (requiredSeason && dbSeries.season && dbSeries.season !== requiredSeason) {
           return { paper, score: 0 };
         }
       }
@@ -975,8 +1024,10 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     const questionNumber = dr.question.questionNumber || match.questionNumber;
     const marks = Number(match.marks) || 0;
 
-    // Use database text if available
-    const questionText = match.databaseQuestionText || dr.question.text || '';
+    // Use database text if available, while preserving extracted OCR/classification text
+    const extractedQuestionText = dr.question.text || '';
+    const databaseQuestionText = match.databaseQuestionText || undefined;
+    const questionText = databaseQuestionText || extractedQuestionText;
 
     // [V2 CLEAN FIX] Standardize markingScheme as string
     let markingSchemeStr = '';
@@ -995,6 +1046,9 @@ export function buildExamPaperStructure(detectionResults: any[]) {
     paperGroup.questions.push({
       questionNumber: String(questionNumber),
       questionText: questionText,
+      extractedQuestionText,
+      ...(databaseQuestionText ? { databaseQuestionText } : {}),
+      ...(dr.question.sourceImageIndex !== undefined ? { sourceImageIndex: dr.question.sourceImageIndex } : {}),
       marks: marks,
       markingScheme: markingSchemeStr
     });

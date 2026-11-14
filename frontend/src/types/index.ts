@@ -61,6 +61,8 @@ export interface QuestionPart {
 export interface MarkingContextQuestionResult {
     number: string;            // "1", "8", "21"
     text: string;              // Question text
+    extractedQuestionText?: string;
+    databaseQuestionText?: string;
     scheme: string;            // Marking scheme
     totalMarks: number;
     earnedMarks: number;

@@ -568,3 +568,42 @@ export function formatPageMapForPrompt(pageMap?: Record<string, any> | null): st
   return `## SUB-QUESTION PAGE MAP (AUTHORITATIVE)\nThe student's work for each question/part appears on the following attached image pages:\n${formattedLines.join('\n')}\n`;
 }
 
+const EXAM_BOILERPLATE_PATTERNS: RegExp[] = [
+  // Mark allocations & totals across all subjects
+  /\(\s*total\s+for\s+question\s+\d+[a-z]?\s+is\s+\d+\s+marks?\s*\)/gi,
+  /total\s+for\s+question\s+\d+[a-z]?\s+is\s+\d+\s+marks?/gi,
+  /\(\s*\d+\s+marks?\s+for\s+[^)]+\)/gi,
+  /\[\s*\d+\s+marks?\s*\]/gi,
+  /\(\s*\d+\s+marks?\s*\)/gi,
+  // Generic exam rubric & timing instructions
+  /you\s+are\s+advised\s+to\s+spend\s+about\s+\d+\s+minutes[^.]*\.?/gi,
+  /you\s+are\s+advised\s+to\s+plan\s+your\s+answer(?:\s+to\s+question\s+\d+[a-z]?)?\s+before\s+you\s+start\s+to\s+write\.?/gi,
+  /you\s+are\s+reminded\s+of\s+the\s+need\s+to\s+plan\s+your\s+answer\.?/gi,
+  /you\s+should\s+leave\s+enough\s+time\s+to\s+check\s+your\s+work\s+at\s+the\s+end\.?/gi,
+  /write\s+in\s+full\s+sentences\.?/gi,
+  /do\s+not\s+write\s+outside\s+the\s+box\.?/gi,
+  /turn\s+over\s*►?/gi,
+  // Shared GCSE English / essay writing-task framing
+  /write\s+an?\s+(?:article|letter|speech|essay|leaflet|blog|email)\s+for\s+(?:a|your)\s+[^.]{0,60}?\s+in\s+which\s+you\s+(?:argue|explain|persuade|advise|describe)\s+your\s+point\s+of\s+view\s+on\s+this\s+statement\.?/gi
+];
+
+/**
+ * Strip recurring exam-board rubric boilerplate and mark-breakdown text before
+ * question similarity scoring so shared instructions/marks cannot inflate
+ * similarity between unrelated questions. Falls back to original text if
+ * stripping leaves too little content.
+ */
+export function stripExamBoilerplateForSimilarity(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let stripped = text;
+  for (const pattern of EXAM_BOILERPLATE_PATTERNS) {
+    stripped = stripped.replace(pattern, ' ');
+  }
+  stripped = stripped.replace(/\s+/g, ' ').trim();
+
+  // Preserve ultra-short questions where stripping would leave < 8 non-space chars
+  const nonSpaceLen = stripped.replace(/\s+/g, '').length;
+  return nonSpaceLen >= 8 ? stripped : text;
+}
+

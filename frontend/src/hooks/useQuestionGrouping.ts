@@ -15,15 +15,47 @@ export const useQuestionGrouping = (
     detectedQuestion: DetectedQuestion | null,
     markingContext?: MarkingContext
 ) => {
-    // Flatten all questions first (supports detectedQuestion.examPapers and falls back to markingContext.questionResults)
+    // Flatten all questions first (supports detectedQuestion.examPapers, merges unmatched detectedQuestion.questions, and falls back to markingContext.questionResults)
     const allQuestions = useMemo(() => {
+        const rootQuestions = (detectedQuestion as any)?.questions;
         if (detectedQuestion?.examPapers && detectedQuestion.examPapers.length > 0) {
-            return detectedQuestion.examPapers.flatMap(paper =>
-                paper.questions.map(q => ({
+            const epQuestions = detectedQuestion.examPapers.flatMap(paper =>
+                (paper.questions || []).map(q => ({
                     ...q,
                     examPaper: paper
                 }))
             );
+            if (epQuestions.length > 0) {
+                if (Array.isArray(rootQuestions) && rootQuestions.length > 0) {
+                    const unmatchedRoot = rootQuestions
+                        .filter((rq: any) => {
+                            const rqNum = String(rq.questionNumber || rq.number || '').trim().toLowerCase();
+                            const inEp = epQuestions.some((epq: any) =>
+                                (rqNum && String(epq.questionNumber || '').trim().toLowerCase() === rqNum) ||
+                                (rq.extractedQuestionText && (epq as any).extractedQuestionText && rq.extractedQuestionText === (epq as any).extractedQuestionText)
+                            );
+                            return !inEp && (rq.detection?.found === false || !rq.databaseQuestionText);
+                        })
+                        .map((q: any) => ({
+                            ...q,
+                            questionNumber: String(q.questionNumber || q.number || ''),
+                            marks: q.marks || 0,
+                            sourceImageIndex: q.sourceImageIndex ?? 0
+                        }));
+                    if (unmatchedRoot.length > 0) {
+                        return [...epQuestions, ...unmatchedRoot];
+                    }
+                }
+                return epQuestions;
+            }
+        }
+        if (Array.isArray(rootQuestions) && rootQuestions.length > 0) {
+            return rootQuestions.map((q: any) => ({
+                ...q,
+                questionNumber: String(q.questionNumber || q.number || ''),
+                marks: q.marks || 0,
+                sourceImageIndex: q.sourceImageIndex ?? 0
+            }));
         }
         // Fallback: build question list directly from markingContext.questionResults
         if (markingContext?.questionResults && markingContext.questionResults.length > 0) {

@@ -1,4 +1,4 @@
-import { normalizeTextForComparison } from "../../utils/TextNormalizationUtils.js";
+import { normalizeTextForComparison, stripExamBoilerplateForSimilarity } from "../../utils/TextNormalizationUtils.js";
 
 // Internal interface for SimilarityService to avoid touching types/index.ts
 interface SimilarityScoreDetails {
@@ -98,9 +98,12 @@ export class SimilarityService {
         dbText: string,
         isRescueMode: boolean = false
     ): SimilarityScoreDetails {
-        const textScore = this.calculateSimilarity(inputText, dbText, true);
-        const inputKeywords = this.getKeywords(inputText);
-        const dbKeywords = this.getKeywords(dbText);
+        const cleanInputText = stripExamBoilerplateForSimilarity(inputText);
+        const cleanDbQuestionText = stripExamBoilerplateForSimilarity(dbText);
+
+        const textScore = this.calculateSimilarity(cleanInputText, cleanDbQuestionText, true);
+        const inputKeywords = this.getKeywords(cleanInputText);
+        const dbKeywords = this.getKeywords(cleanDbQuestionText);
 
         let semanticCheck = false;
         if (inputKeywords.size < 2 || dbKeywords.size < 2) {
@@ -114,8 +117,8 @@ export class SimilarityService {
             }
         }
 
-        const inputNums = (inputText.match(/\d+(\.\d+)?/g) || []);
-        const cleanDbText = dbText.replace(/\[.*?\]/g, "");
+        const inputNums = (cleanInputText.match(/\d+(\.\d+)?/g) || []);
+        const cleanDbText = cleanDbQuestionText.replace(/\[.*?\]/g, "");
         const dbNums = (cleanDbText.match(/\d+(\.\d+)?/g) || []);
 
         let numericScore = 0;

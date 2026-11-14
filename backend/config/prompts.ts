@@ -1,8 +1,9 @@
 import marking_basic_system_prompt from './prompts/marking_basic_system_prompt.js';
 import marking_scheme_system_prompt from './prompts/marking_scheme_system_prompt.js';
-import question_only_system_prompt from './prompts/question_only_system_prompt.js';
-import question_only_user_prompt from './prompts/question_only_user_prompt.js';
-import contextual_system_prompt from './prompts/contextual_system_prompt.js';
+import question_only_system_prompt, { buildQuestionOnlySystemPrompt } from './prompts/question_only_system_prompt.js';
+import question_only_user_prompt, { buildQuestionOnlyUserPrompt } from './prompts/question_only_user_prompt.js';
+import contextual_system_prompt, { buildContextualSystemPrompt } from './prompts/contextual_system_prompt.js';
+import type { SubjectKey, SubjectProfile } from './subjectProfiles.js';
 import model_answer_system_prompt from './prompts/model_answer_system_prompt.js';
 import model_answer_html_system_prompt from './prompts/model_answer_html_system_prompt.js';
 import diagram_extractor_system_prompt from './prompts/diagram_extractor_system_prompt.js';
@@ -52,13 +53,18 @@ export const AI_PROMPTS = {
   // ============================================================================
   marking: {
     questionOnly: {
-      system: question_only_system_prompt,
-      user: (message: string, markingScheme: string) => question_only_user_prompt
-        .replace('{{QUESTION_TEXT}}', message)
-        .replace('{{MARKING_SCHEME}}', markingScheme)
+      system: (subjectProfile?: SubjectProfile) =>
+        subjectProfile ? buildQuestionOnlySystemPrompt(subjectProfile) : question_only_system_prompt,
+      user: (message: string, markingScheme: string, subjectProfile?: SubjectProfile) =>
+        subjectProfile
+          ? buildQuestionOnlyUserPrompt(message, markingScheme, subjectProfile)
+          : question_only_user_prompt
+              .replace('{{QUESTION_TEXT}}', message)
+              .replace('{{MARKING_SCHEME}}', markingScheme)
     },
     contextual: {
-      system: contextual_system_prompt,
+      system: (subjectProfileOrKey?: SubjectProfile | SubjectKey) =>
+        subjectProfileOrKey ? buildContextualSystemPrompt(subjectProfileOrKey) : contextual_system_prompt,
       user: (message: string, contextPrompt: string) => `You are helping a student. Based on the following context, help them with this question: "${message}"\n\nContext:\n${contextPrompt}`
     }
   },

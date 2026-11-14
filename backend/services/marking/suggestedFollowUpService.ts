@@ -112,7 +112,8 @@ export class SuggestedFollowUpService {
     } else {
       // Fallback: Find the most recent assistant message
       const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) =>
-        msg.role === 'assistant' && msg.detectedQuestion?.found
+        msg.role === 'assistant' &&
+        (msg.detectedQuestion?.found || (Array.isArray(msg.detectedQuestion?.questions) && msg.detectedQuestion.questions.length > 0))
       ) || [];
 
       if (messagesWithDetectedQuestion.length === 0) {
@@ -358,12 +359,16 @@ export class SuggestedFollowUpService {
     const isSimilarQuestions = mode === 'similarquestions';
 
     const detectedQuestion = targetMessage.detectedQuestion;
-    if (!detectedQuestion?.examPapers || !Array.isArray(detectedQuestion.examPapers)) {
+    const hasExamPapers = Array.isArray(detectedQuestion?.examPapers) &&
+      detectedQuestion.examPapers.some((ep: any) => Array.isArray(ep.questions) && ep.questions.length > 0);
+    const hasRootQuestions = Array.isArray(detectedQuestion?.questions) && detectedQuestion.questions.length > 0;
+
+    if (!hasExamPapers && !hasRootQuestions) {
       progressTracker.finish();
       return { response: "(No paper data available)", apiUsed: model, progressData: null, usageTokens: 0 };
     }
 
-    const firstEp = detectedQuestion.examPapers[0];
+    const firstEp = hasExamPapers ? detectedQuestion.examPapers[0] : undefined;
     const subjectProfile = resolveSubjectProfile({
       subject: firstEp?.subject,
       paperCode: firstEp?.examCode,
@@ -381,8 +386,32 @@ export class SuggestedFollowUpService {
       systemPrompt = getPrompt(`${currentPromptKey}.system`);
     }
 
-    // 2. Process Questions directly (Handle both examPapers and root questions)
-    let questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
+    // 2. Process Questions directly (Handle examPapers, root questions fallback when examPapers is empty, and partial matches)
+    const examPaperQuestions = hasExamPapers
+      ? detectedQuestion.examPapers.flatMap((ep: any) => ep.questions || [])
+      : [];
+    const unmatchedRootQuestions = hasRootQuestions
+      ? (detectedQuestion.questions || []).filter((rq: any) => {
+          const rqNum = String(rq.questionNumber || rq.number || '').trim().toLowerCase();
+          const inExamPapers = examPaperQuestions.some((epq: any) => {
+            const epqNum = String(epq.questionNumber || epq.number || '').trim().toLowerCase();
+            return (rqNum && epqNum === rqNum) ||
+              (rq.extractedQuestionText && epq.extractedQuestionText && rq.extractedQuestionText === epq.extractedQuestionText);
+          });
+          return !inExamPapers && (rq.detection?.found === false || !rq.databaseQuestionText);
+        })
+      : [];
+
+    const effectiveExamPapers = hasExamPapers
+      ? [
+          ...detectedQuestion.examPapers,
+          ...(unmatchedRootQuestions.length > 0
+            ? [{ questions: unmatchedRootQuestions, examBoard: 'Custom', examCode: 'N/A' }]
+            : [])
+        ]
+      : [{ questions: detectedQuestion.questions || [], examBoard: 'Custom', examCode: 'N/A' }];
+
+    let questions = effectiveExamPapers.flatMap((ep: any) =>
       (ep.questions || []).map((q: any) => {
         const base = String(q.questionNumber || q.number || 'unknown');
 
@@ -422,7 +451,7 @@ export class SuggestedFollowUpService {
       // It's safer to proceed with what we have if the filter returns empty
       if (questions.length === 0) {
          console.warn(`[FOLLOW-UP] contextQuestionId '${contextQuestionId}' did not match any questions. Proceeding with all questions.`);
-         questions = (detectedQuestion.examPapers || [{ questions: detectedQuestion.questions || [] }]).flatMap((ep: any) =>
+         questions = effectiveExamPapers.flatMap((ep: any) =>
           (ep.questions || []).map((q: any) => ({
             ...q,
             base: String(q.questionNumber || q.number || 'unknown'),
@@ -434,8 +463,13 @@ export class SuggestedFollowUpService {
     }
 
     // [FEATURE] Restore Debug Logging from environment variables
+    const logUserPrompt = process.env.LOG_AI_MARKING_USER_PROMPT === 'true';
+    const logSystemPrompt = process.env.LOG_AI_MARKING_SYSTEM_PROMPT === 'true';
+    const logResponse = process.env.LOG_AI_MARKING_RESPONSE === 'true';
     const isLoggingEnabled = (isModelAnswer && process.env.LOG_SUGGESTED_MODEL_ANSWER === 'true') ||
-                           (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true');
+                           (!isModelAnswer && mode === 'marking-scheme' && process.env.LOG_MARKING_SCHEME_EXPLAIN === 'true') ||
+                           logUserPrompt ||
+                           logSystemPrompt;
 
     // Helper to build user prompt for a single question
     const buildSingleQuestionUserPrompt = (q: any): string => {
@@ -532,12 +566,19 @@ export class SuggestedFollowUpService {
         const userPrompt = buildSingleQuestionUserPrompt(q);
         if (isLoggingEnabled) {
           console.log(`\n🔍 [DEBUG] ${mode.toUpperCase()} PROMPT (Question ${q.base}):`);
-          console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+          if (logSystemPrompt || !logUserPrompt) {
+            console.log(`--- SYSTEM ---\n${systemPrompt}\n`);
+          } else {
+            console.log(`--- SYSTEM ---\n[REDACTED] (Set LOG_AI_MARKING_SYSTEM_PROMPT=true to enable)\n`);
+          }
           console.log(`--- USER ---\n${userPrompt}\n`);
         }
         try {
           const followUpPhase = isModelAnswer ? 'modelAnswer' : (isSimilarQuestions ? 'similarquestions' : 'markingScheme');
           const ai = await ModelProvider.callText(systemPrompt, userPrompt, model as any, false, tracker, followUpPhase as any);
+          if (logResponse) {
+            console.log(`\n[LOG-DEBUG] Raw AI ${mode.toUpperCase()} Response (Q${q.base}):\n${ai.content}\n`);
+          }
           totalTokens += ai.usageTokens || 0;
           rawAnswersByBase.set(String(q.base), ai.content);
         } catch (err) {
@@ -562,6 +603,9 @@ export class SuggestedFollowUpService {
 
       try {
         const ai = await ModelProvider.callText(systemPrompt, batchUserPrompt, model as any, false, tracker, isModelAnswer ? 'modelAnswer' : 'markingScheme');
+        if (logResponse) {
+          console.log(`\n[LOG-DEBUG] Raw AI ${mode.toUpperCase()} BATCH Response:\n${ai.content}\n`);
+        }
         totalTokens += ai.usageTokens || 0;
         const batchOutput = ai.content.replace(/^```(markdown|html)?\s*/i, '').replace(/\s*```$/i, '').trim();
 

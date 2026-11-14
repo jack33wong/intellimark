@@ -12,7 +12,47 @@ export interface FunnelEventLog {
 
 export type AlertFeature = 'MARKING' | 'FOLLOW_UP_CHAT' | 'MODEL_ANSWER' | 'MARKING_SCHEME';
 
+export type SessionTurnType = 'MARKING' | 'QUESTION_MODE' | 'REMARK' | 'FOLLOW_UP_CHAT';
+
+export interface SessionDigestUploadedFile {
+  filename: string;
+  url: string;
+  sizeBytes?: number;
+}
+
+export interface SessionDigestTurn {
+  turnType: SessionTurnType;
+  timestamp: string;
+  submissionId?: string;
+  model: string;
+  durationMs: number;
+  status: 'OK' | 'FAILED';
+  errorMessage?: string;
+  scoreText?: string;
+  questionBreakdown?: string[];
+  userInput?: string;
+  aiResponse?: string;
+  logsText: string;
+  lineCount: number;
+  truncated?: boolean;
+}
+
+interface SessionDigestEntry {
+  sessionId: string;
+  userId: string;
+  userEmail?: string;
+  sessionTitle: string;
+  createdAt: string;
+  lastActivityAt: string;
+  turns: SessionDigestTurn[];
+  uploadedFiles: SessionDigestUploadedFile[];
+  timer: NodeJS.Timeout;
+  expiresAt: number;
+}
+
 const INACTIVITY_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
+const DEFAULT_SESSION_DIGEST_IDLE_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_SESSION_DIGESTS_IN_MEMORY = 500;
 
 export class AdminAlertService {
   // Track recent funnel events per anonymousId or userId (capped to prevent memory leaks)
@@ -21,8 +61,15 @@ export class AdminAlertService {
   private static userToAnonMap = new Map<string, string>();
   // Track 3-minute inactivity timers for newly signed-up users
   private static signupTimers = new Map<string, { timer: NodeJS.Timeout; expiresAt: number }>();
+  // Track idle-timeout session digests (keyed by sessionId)
+  private static sessionDigests = new Map<string, SessionDigestEntry>();
 
   private static transporter: Transporter | null = null;
+
+  private static getSessionDigestIdleMs(): number {
+    const parsed = parseInt(process.env.MARKING_LOG_IDLE_TIMEOUT_MS || '', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SESSION_DIGEST_IDLE_MS;
+  }
 
   private static getTransporter(): Transporter | null {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
@@ -61,6 +108,13 @@ export class AdminAlertService {
         clearTimeout(entry.timer);
         this.signupTimers.delete(uid);
         void this.handleUserInactivity(uid);
+      }
+    }
+    for (const [sid, digest] of this.sessionDigests.entries()) {
+      if (now >= digest.expiresAt) {
+        clearTimeout(digest.timer);
+        this.sessionDigests.delete(sid);
+        void this.flushSessionDigestEntry(digest);
       }
     }
   }
@@ -406,31 +460,17 @@ ${funnelText}
   }
 
   /**
-   * Upload request files to GCS and generate 7-day signed download URLs
+   * Upload Multer files to GCS and generate 7-day signed download URLs
    */
-  private static async uploadFilesForCrash(
-    req: Request,
-    userId: string
+  private static async uploadMulterFilesToGcs(
+    files: Express.Multer.File[],
+    userId: string,
+    gcsPrefix: string
   ): Promise<Array<{ filename: string; signedUrl: string; sizeBytes: number }>> {
     const uploadedLinks: Array<{ filename: string; signedUrl: string; sizeBytes: number }> = [];
 
     try {
-      const files: Express.Multer.File[] = [];
-
-      if (req.file) {
-        files.push(req.file);
-      }
-      if (req.files) {
-        if (Array.isArray(req.files)) {
-          files.push(...req.files);
-        } else {
-          for (const key of Object.keys(req.files)) {
-            files.push(...(req.files[key] || []));
-          }
-        }
-      }
-
-      if (files.length === 0) return uploadedLinks;
+      if (!files || files.length === 0) return uploadedLinks;
 
       const storage = getStorage();
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'intellimark-6649e.firebasestorage.app';
@@ -441,10 +481,10 @@ ${funnelText}
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.buffer || file.buffer.length === 0) continue;
+        if (!file?.buffer || file.buffer.length === 0) continue;
 
         const sanitizedName = (file.originalname || `upload_${i}.dat`).replace(/[^a-zA-Z0-9._-]/g, '_');
-        const gcsPath = `crashes/${dateStr}/${timestamp}_${i}_${sanitizedName}`;
+        const gcsPath = `${gcsPrefix}/${dateStr}/${timestamp}_${i}_${sanitizedName}`;
         const fileRef = bucket.file(gcsPath);
 
         await fileRef.save(file.buffer, {
@@ -453,7 +493,7 @@ ${funnelText}
             metadata: {
               uploadedBy: userId,
               originalName: file.originalname || 'unknown',
-              crashedAt: new Date().toISOString(),
+              uploadedAt: new Date().toISOString(),
             }
           }
         });
@@ -471,10 +511,132 @@ ${funnelText}
         });
       }
     } catch (storageErr) {
-      console.error('⚠️ [ADMIN-ALERT] Failed to upload crash files to GCS:', storageErr);
+      console.error(`⚠️ [ADMIN-ALERT] Failed to upload ${gcsPrefix} files to GCS:`, storageErr);
     }
 
     return uploadedLinks;
+  }
+
+  /**
+   * Upload request files to GCS and generate 7-day signed download URLs (for crash alerts)
+   */
+  private static async uploadFilesForCrash(
+    req: Request,
+    userId: string
+  ): Promise<Array<{ filename: string; signedUrl: string; sizeBytes: number }>> {
+    const files: Express.Multer.File[] = [];
+
+    if (req.file) {
+      files.push(req.file);
+    }
+    if (req.files) {
+      if (Array.isArray(req.files)) {
+        files.push(...req.files);
+      } else {
+        for (const key of Object.keys(req.files)) {
+          files.push(...(req.files[key] || []));
+        }
+      }
+    }
+
+    return this.uploadMulterFilesToGcs(files, userId, 'crashes');
+  }
+
+  /**
+   * Upload Multer files to GCS for session digest logs when no Firebase Storage URLs exist (e.g. guest users)
+   */
+  public static async uploadFilesForLog(
+    files: Express.Multer.File[],
+    userId: string
+  ): Promise<SessionDigestUploadedFile[]> {
+    const uploaded = await this.uploadMulterFilesToGcs(files, userId, 'marking-logs');
+    return uploaded.map((item) => ({
+      filename: item.filename,
+      url: item.signedUrl,
+      sizeBytes: item.sizeBytes,
+    }));
+  }
+
+  /**
+   * Upload a base64 data URL or raw base64 image to GCS for session digest logs (e.g. guest follow-up image)
+   */
+  public static async uploadBase64ImageForLog(
+    imageData: string,
+    userId: string,
+    filename = 'follow-up-image.jpg'
+  ): Promise<SessionDigestUploadedFile | null> {
+    try {
+      if (!imageData || typeof imageData !== 'string') return null;
+
+      let mimeType = 'image/jpeg';
+      let base64Body = imageData;
+      const match = imageData.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1] || 'image/jpeg';
+        base64Body = match[2];
+      }
+
+      const buffer = Buffer.from(base64Body, 'base64');
+      if (!buffer || buffer.length === 0) return null;
+
+      const ext = mimeType.split('/')[1]?.split('+')[0] || 'jpg';
+      const resolvedName = filename.includes('.') ? filename : `${filename}.${ext}`;
+      const fakeFile = {
+        originalname: resolvedName,
+        mimetype: mimeType,
+        buffer,
+        size: buffer.length,
+      } as Express.Multer.File;
+
+      const uploaded = await this.uploadFilesForLog([fakeFile], userId);
+      return uploaded[0] || null;
+    } catch (err) {
+      console.error('⚠️ [ADMIN-ALERT] Failed to upload base64 image for log:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Extract already-uploaded Firebase Storage URLs from a marking/question-mode pipeline result
+   */
+  public static extractUploadedFileLinksFromResult(result: any): SessionDigestUploadedFile[] {
+    const links: SessionDigestUploadedFile[] = [];
+    const seenUrls = new Set<string>();
+
+    const addLink = (url?: string, filename?: string) => {
+      if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url) || seenUrls.has(url)) return;
+      seenUrls.add(url);
+      links.push({
+        filename: filename || 'Uploaded File',
+        url,
+      });
+    };
+
+    const messages: any[] =
+      result?.unifiedSession?.messages ||
+      result?.submissionResult?.unifiedSession?.messages ||
+      [];
+
+    if (Array.isArray(messages)) {
+      for (const msg of messages) {
+        if (!msg || msg.role !== 'user') continue;
+        if (Array.isArray(msg.pdfContexts)) {
+          for (const ctx of msg.pdfContexts) {
+            addLink(ctx?.url || ctx?.originalPdfLink, ctx?.originalFileName || 'document.pdf');
+          }
+        }
+        if (Array.isArray(msg.imageDataArray)) {
+          msg.imageDataArray.forEach((item: any, idx: number) => {
+            addLink(item?.url, item?.originalFileName || `image-${idx + 1}.jpg`);
+          });
+        }
+        if (msg.imageLink) {
+          addLink(msg.imageLink, 'uploaded-file');
+        }
+      }
+    }
+
+    return links;
   }
 
   /**
@@ -602,50 +764,71 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
   }
 
   /**
-   * Sends a completed per-request terminal log (.txt attachment + accuracy summary)
-   * to ADMIN_ALERT_EMAIL after a marking or re-marking request finishes.
-   * Controlled by MARKING_LOG_EMAIL_MODE = 'all' (default) | 'errors_only' | 'off'.
+   * Testing helper: allow unit tests to inject a mock transporter (or reset to null).
    */
-  public static async notifyMarkingLog(params: {
-    submissionId: string;
+  public static setTransporterForTesting(transporter: Transporter | null): void {
+    this.transporter = transporter;
+  }
+
+  /**
+   * Testing/shutdown helper: return number of pending session digests.
+   */
+  public static getPendingSessionDigestCount(): number {
+    return this.sessionDigests.size;
+  }
+
+  /**
+   * Record a turn (MARKING, QUESTION_MODE, REMARK, or FOLLOW_UP_CHAT) into the
+   * idle-timeout session digest for `sessionId`. One combined email is sent
+   * after `MARKING_LOG_IDLE_TIMEOUT_MS` (default 5 min) of inactivity.
+   */
+  public static recordSessionTurn(params: {
     sessionId?: string;
+    submissionId?: string;
+    turnType: SessionTurnType;
     userId?: string;
     userEmail?: string;
+    sessionTitle?: string;
     model?: string;
-    isRemark?: boolean;
     result?: any;
     error?: any;
+    userInput?: string;
+    aiResponse?: string;
+    uploadedFiles?: SessionDigestUploadedFile[];
     logsText: string;
     lineCount: number;
     durationMs: number;
     truncated?: boolean;
-  }): Promise<void> {
+  }): void {
     try {
       const mode = (process.env.MARKING_LOG_EMAIL_MODE || 'all').toLowerCase();
       if (mode === 'off' || mode === 'false') return;
-      if (mode === 'errors_only' && !params.error) return;
 
-      const transporter = this.getTransporter();
-      const adminEmail = process.env.ADMIN_ALERT_EMAIL;
-      if (!transporter || !adminEmail) return;
+      this.sweepExpiredTimers();
 
       const {
         submissionId,
-        sessionId,
+        turnType,
         userId = 'anonymous',
         userEmail,
         model = 'default',
-        isRemark = false,
         result,
         error,
+        userInput,
+        aiResponse,
+        uploadedFiles = [],
         logsText,
         lineCount,
         durationMs,
         truncated = false,
       } = params;
 
-      const durationSec = (durationMs / 1000).toFixed(1);
-      const status = error ? 'FAILED' : 'OK';
+      const resolvedSessionId =
+        params.sessionId ||
+        result?.sessionId ||
+        result?.unifiedSession?.id ||
+        submissionId ||
+        `session-${Date.now()}`;
 
       // Extract score & paper info safely from pipeline result
       const scoreObj =
@@ -659,11 +842,12 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
           ? `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`
           : typeof metaScore?.totalScore === 'number' && typeof metaScore?.maxScore === 'number' && metaScore.maxScore > 0
             ? `${metaScore.totalScore}/${metaScore.maxScore}`
-            : 'N/A');
+            : undefined);
 
       const detectedQ = result?.detectedQuestion || result?.submissionResult?.detectedQuestion;
       const firstPaper = detectedQ?.examPapers?.[0];
-      const sessionTitle =
+      const extractedTitle =
+        params.sessionTitle ||
         result?.sessionTitle ||
         result?.unifiedSession?.title ||
         result?.submissionResult?.sessionTitle ||
@@ -671,12 +855,13 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
         (firstPaper
           ? [firstPaper.examBoard, firstPaper.subject, firstPaper.examCode].filter(Boolean).join(' ')
           : '') ||
-        'Marking Session';
+        '';
 
       // Extract per-question score breakdown if available
       const qResults: any[] =
         result?.markingResults ||
         result?.questionResults ||
+        result?.results ||
         result?.submissionResult?.questionResults ||
         [];
       const questionBreakdown = Array.isArray(qResults)
@@ -692,73 +877,343 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
             .filter(Boolean)
         : [];
 
-      const safeSubId = String(submissionId || 'marking').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const subjectPrefix = isRemark ? '[REMARK LOG]' : '[MARKING LOG]';
-      const emailSubject = `${subjectPrefix} ${scoreText} | ${sessionTitle} | ${status} | ${durationSec}s`;
+      const extractedLinks = this.extractUploadedFileLinksFromResult(result);
+      const combinedFiles = [...uploadedFiles, ...extractedLinks];
 
-      const logLines = logsText ? logsText.split('\n') : [];
-      const tailPreview = logLines.slice(-30).join('\n');
-      const errorMessage = error ? (error?.message || String(error)) : '';
+      const nowIso = new Date().toISOString();
+      const errorMessage = error ? (error?.message || String(error)) : undefined;
+
+      const turn: SessionDigestTurn = {
+        turnType,
+        timestamp: nowIso,
+        submissionId,
+        model,
+        durationMs,
+        status: error ? 'FAILED' : 'OK',
+        errorMessage,
+        scoreText,
+        questionBreakdown: questionBreakdown.length > 0 ? questionBreakdown : undefined,
+        userInput,
+        aiResponse,
+        logsText,
+        lineCount,
+        truncated,
+      };
+
+      const existing = this.sessionDigests.get(resolvedSessionId);
+      const idleMs = this.getSessionDigestIdleMs();
+      const expiresAt = Date.now() + idleMs;
+
+      if (existing) {
+        clearTimeout(existing.timer);
+        existing.lastActivityAt = nowIso;
+        if (userId && userId !== 'anonymous') existing.userId = userId;
+        if (userEmail) existing.userEmail = userEmail;
+        if (extractedTitle && (existing.sessionTitle === 'Marking Session' || existing.sessionTitle === 'Chat Session' || !existing.sessionTitle)) {
+          existing.sessionTitle = extractedTitle;
+        }
+        existing.turns.push(turn);
+
+        // Merge & deduplicate uploaded file links by URL
+        const seenUrls = new Set(existing.uploadedFiles.map((f) => f.url));
+        for (const f of combinedFiles) {
+          if (f?.url && !seenUrls.has(f.url)) {
+            seenUrls.add(f.url);
+            existing.uploadedFiles.push(f);
+          }
+        }
+
+        existing.expiresAt = expiresAt;
+        existing.timer = setTimeout(() => {
+          this.sessionDigests.delete(resolvedSessionId);
+          void this.flushSessionDigestEntry(existing);
+        }, idleMs);
+        existing.timer.unref?.();
+      } else {
+        // Memory safeguard: if map exceeds cap, flush oldest entry immediately
+        if (this.sessionDigests.size >= MAX_SESSION_DIGESTS_IN_MEMORY) {
+          const oldestKey = this.sessionDigests.keys().next().value;
+          if (oldestKey) {
+            const oldestEntry = this.sessionDigests.get(oldestKey);
+            if (oldestEntry) {
+              clearTimeout(oldestEntry.timer);
+              this.sessionDigests.delete(oldestKey);
+              void this.flushSessionDigestEntry(oldestEntry);
+            }
+          }
+        }
+
+        const dedupedFiles: SessionDigestUploadedFile[] = [];
+        const seenUrls = new Set<string>();
+        for (const f of combinedFiles) {
+          if (f?.url && !seenUrls.has(f.url)) {
+            seenUrls.add(f.url);
+            dedupedFiles.push(f);
+          }
+        }
+
+        const entry: SessionDigestEntry = {
+          sessionId: resolvedSessionId,
+          userId,
+          userEmail,
+          sessionTitle: extractedTitle || (turnType === 'FOLLOW_UP_CHAT' ? 'Chat Session' : 'Marking Session'),
+          createdAt: nowIso,
+          lastActivityAt: nowIso,
+          turns: [turn],
+          uploadedFiles: dedupedFiles,
+          expiresAt,
+          timer: setTimeout(() => {
+            this.sessionDigests.delete(resolvedSessionId);
+            void this.flushSessionDigestEntry(entry);
+          }, idleMs),
+        };
+        entry.timer.unref?.();
+        this.sessionDigests.set(resolvedSessionId, entry);
+      }
+
+      console.log(`🕒 [ADMIN-ALERT] Recorded ${turnType} turn for session ${resolvedSessionId} (digest idle timeout: ${Math.round(idleMs / 1000)}s)`);
+    } catch (err) {
+      console.error('❌ [ADMIN-ALERT] Failed to record session turn for digest:', err);
+    }
+  }
+
+  /**
+   * Flush a single session's digest immediately (if pending). Returns true if found and flushed.
+   */
+  public static async flushSessionDigest(sessionId: string): Promise<boolean> {
+    const entry = this.sessionDigests.get(sessionId);
+    if (!entry) return false;
+    clearTimeout(entry.timer);
+    this.sessionDigests.delete(sessionId);
+    await this.flushSessionDigestEntry(entry);
+    return true;
+  }
+
+  /**
+   * Flush all pending session digests immediately (e.g. on graceful shutdown or in tests).
+   */
+  public static async flushAllSessionDigests(): Promise<number> {
+    const entries = Array.from(this.sessionDigests.values());
+    for (const entry of entries) {
+      clearTimeout(entry.timer);
+    }
+    this.sessionDigests.clear();
+    await Promise.all(entries.map((entry) => this.flushSessionDigestEntry(entry)));
+    return entries.length;
+  }
+
+  /**
+   * Sends the combined idle-timeout session digest email for a completed/idle session.
+   */
+  private static async flushSessionDigestEntry(entry: SessionDigestEntry): Promise<void> {
+    try {
+      const mode = (process.env.MARKING_LOG_EMAIL_MODE || 'all').toLowerCase();
+      if (mode === 'off' || mode === 'false') return;
+
+      const hasFailure = entry.turns.some((t) => t.status === 'FAILED');
+      if (mode === 'errors_only' && !hasFailure) return;
+
+      const transporter = this.getTransporter();
+      const adminEmail = process.env.ADMIN_ALERT_EMAIL;
+      if (!transporter || !adminEmail) return;
+
+      const totalDurationMs = entry.turns.reduce((sum, t) => sum + (t.durationMs || 0), 0);
+      const totalDurationSec = (totalDurationMs / 1000).toFixed(1);
+      const totalLines = entry.turns.reduce((sum, t) => sum + (t.lineCount || 0), 0);
+      const overallStatus = hasFailure ? 'HAS_ERRORS' : 'OK';
+      const includeRawAiResponse = process.env.LOG_AI_MARKING_RESPONSE === 'true';
+
+      const latestScoreTurn = [...entry.turns].reverse().find((t) => t.scoreText && t.scoreText !== 'N/A');
+      const scoreSummary = latestScoreTurn?.scoreText ? `${latestScoreTurn.scoreText} | ` : '';
+      const modelsUsed = Array.from(new Set(entry.turns.map((t) => t.model).filter(Boolean))).join(', ') || 'default';
+      const latestBreakdown = [...entry.turns].reverse().find((t) => t.questionBreakdown && t.questionBreakdown.length > 0)?.questionBreakdown || [];
+
+      const turnLabel = `${entry.turns.length} turn${entry.turns.length === 1 ? '' : 's'}`;
+      const emailSubject = `[SESSION DIGEST] ${scoreSummary}${entry.sessionTitle} | ${turnLabel} | ${overallStatus} | ${totalDurationSec}s`;
 
       const escapeHtml = (str: string) =>
-        str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const filesText =
+        entry.uploadedFiles.length > 0
+          ? entry.uploadedFiles
+              .map((f) => `- ${f.filename}${f.sizeBytes ? ` (${(f.sizeBytes / (1024 * 1024)).toFixed(2)} MB)` : ''}: ${f.url}`)
+              .join('\n')
+          : 'No uploaded files.';
+
+      const filesHtml =
+        entry.uploadedFiles.length > 0
+          ? `<ul style="margin: 6px 0; padding-left: 20px;">${entry.uploadedFiles
+              .map(
+                (f) =>
+                  `<li><a href="${escapeHtml(f.url)}" target="_blank" style="color: #0066cc; font-weight: 600;">${escapeHtml(f.filename)}</a>${
+                    f.sizeBytes ? ` (${(f.sizeBytes / (1024 * 1024)).toFixed(2)} MB)` : ''
+                  }</li>`
+              )
+              .join('')}</ul>`
+          : '<p style="margin: 6px 0; color: #666;"><em>No uploaded files recorded.</em></p>';
+
+      // Build combined .txt attachment across all turns
+      const combinedLogsText = entry.turns
+        .map((t, idx) => {
+          const header = [
+            '================================================================================',
+            `TURN ${idx + 1}: ${t.turnType} | ${t.timestamp} | Model: ${t.model} | Status: ${t.status} | Duration: ${(t.durationMs / 1000).toFixed(1)}s`,
+            t.submissionId ? `Submission ID: ${t.submissionId}` : '',
+            t.scoreText ? `Score: ${t.scoreText}` : '',
+            t.errorMessage ? `Error: ${t.errorMessage}` : '',
+            t.userInput ? `Student Input:\n${t.userInput}` : '',
+            includeRawAiResponse && t.aiResponse ? `Raw AI Response:\n${t.aiResponse}` : '',
+            '--------------------------------------------------------------------------------',
+          ]
+            .filter(Boolean)
+            .join('\n');
+          return `${header}\n${t.logsText || '(No log output captured)'}`;
+        })
+        .join('\n\n');
+
+      const turnsText = entry.turns
+        .map((t, idx) => {
+          const tail = (t.logsText ? t.logsText.split('\n').slice(-20).join('\n') : '') || '(No log lines captured)';
+          return [
+            `--- Turn ${idx + 1}: ${t.turnType} (${t.status}, ${(t.durationMs / 1000).toFixed(1)}s, model=${t.model}) ---`,
+            t.scoreText ? `Score: ${t.scoreText}` : '',
+            t.errorMessage ? `Error: ${t.errorMessage}` : '',
+            t.userInput ? `Input: ${t.userInput}` : '',
+            includeRawAiResponse && t.aiResponse ? `AI Response:\n${t.aiResponse}` : '',
+            'Tail Log Preview:',
+            tail,
+          ]
+            .filter(Boolean)
+            .join('\n');
+        })
+        .join('\n\n');
+
+      const turnsHtml = entry.turns
+        .map((t, idx) => {
+          const tail = (t.logsText ? t.logsText.split('\n').slice(-20).join('\n') : '') || '(No log lines captured)';
+          const badgeBg = t.status === 'FAILED' ? '#f8d7da' : '#e8f5e9';
+          const badgeColor = t.status === 'FAILED' ? '#721c24' : '#1b5e20';
+          return `
+<div style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; margin-bottom: 14px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+    <strong>Turn ${idx + 1}: ${escapeHtml(t.turnType)}</strong>
+    <span style="background: ${badgeBg}; color: ${badgeColor}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+      ${t.status} | ${(t.durationMs / 1000).toFixed(1)}s | ${escapeHtml(t.model)}
+    </span>
+  </div>
+  <div style="font-size: 12px; color: #666; margin-bottom: 6px;">
+    Time: ${escapeHtml(t.timestamp)}${t.scoreText ? ` | Score: <strong>${escapeHtml(t.scoreText)}</strong>` : ''} | Log Lines: ${t.lineCount}${t.truncated ? ' (truncated)' : ''}
+  </div>
+  ${t.errorMessage ? `<div style="color: #721c24; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Error: ${escapeHtml(t.errorMessage)}</div>` : ''}
+  ${t.userInput ? `<div style="margin: 6px 0;"><div style="font-size: 12px; font-weight: 600;">Student Input:</div><pre style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 8px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; margin: 4px 0;">${escapeHtml(t.userInput)}</pre></div>` : ''}
+  ${includeRawAiResponse && t.aiResponse ? `<div style="margin: 6px 0;"><div style="font-size: 12px; font-weight: 600;">AI Response:</div><pre style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 8px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; margin: 4px 0; max-height: 300px; overflow-y: auto;">${escapeHtml(t.aiResponse)}</pre></div>` : ''}
+  <details style="margin-top: 6px;">
+    <summary style="cursor: pointer; font-size: 12px; color: #444;">Tail Preview (Last 20 Lines)</summary>
+    <pre style="background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 4px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; margin-top: 6px;">${escapeHtml(tail)}</pre>
+  </details>
+</div>`;
+        })
+        .join('\n');
+
+      const safeSessionId = String(entry.sessionId || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
 
       await transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to: adminEmail,
         subject: emailSubject,
         text: [
-          `${subjectPrefix} Accuracy Review`,
-          `Status: ${status}${errorMessage ? ` (${errorMessage})` : ''}`,
-          `Submission ID: ${submissionId}`,
-          `Session ID: ${sessionId || result?.sessionId || 'N/A'}`,
-          `User: ${userEmail || userId}`,
-          `Model: ${model}`,
-          `Session: ${sessionTitle}`,
-          `Score: ${scoreText}`,
-          `Duration: ${durationSec}s | Log Lines: ${lineCount}${truncated ? ' (truncated at 2MB/5000 lines)' : ''}`,
-          questionBreakdown.length > 0 ? `Questions: ${questionBreakdown.join(', ')}` : '',
+          `SESSION DIGEST (${turnLabel})`,
+          `Status: ${overallStatus}`,
+          `Session ID: ${entry.sessionId}`,
+          `User: ${entry.userEmail || entry.userId}`,
+          `Session Title: ${entry.sessionTitle}`,
+          `Models: ${modelsUsed}`,
+          latestScoreTurn?.scoreText ? `Score: ${latestScoreTurn.scoreText}` : '',
+          latestBreakdown.length > 0 ? `Questions: ${latestBreakdown.join(', ')}` : '',
+          `Total Duration: ${totalDurationSec}s | Total Log Lines: ${totalLines}`,
+          `Started: ${entry.createdAt} | Last Activity: ${entry.lastActivityAt}`,
           '',
-          '--- Last 30 Log Lines (full log attached) ---',
-          tailPreview,
+          'Uploaded Files:',
+          filesText,
+          '',
+          turnsText,
         ]
           .filter(Boolean)
           .join('\n'),
         html: `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 780px; margin: 0 auto; color: #222; line-height: 1.5;">
-  <div style="background: ${error ? '#f8d7da' : '#e8f5e9'}; border-left: 5px solid ${error ? '#dc3545' : '#2e7d32'}; padding: 14px 16px; border-radius: 4px; margin-bottom: 16px;">
-    <h2 style="margin: 0 0 4px 0; font-size: 18px; color: ${error ? '#721c24' : '#1b5e20'};">
-      ${error ? '❌' : '✅'} ${subjectPrefix} ${escapeHtml(scoreText)} — ${escapeHtml(sessionTitle)}
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 820px; margin: 0 auto; color: #222; line-height: 1.5;">
+  <div style="background: ${hasFailure ? '#f8d7da' : '#e8f5e9'}; border-left: 5px solid ${hasFailure ? '#dc3545' : '#2e7d32'}; padding: 14px 16px; border-radius: 4px; margin-bottom: 16px;">
+    <h2 style="margin: 0 0 4px 0; font-size: 18px; color: ${hasFailure ? '#721c24' : '#1b5e20'};">
+      ${hasFailure ? '❌' : '✅'} [SESSION DIGEST] ${escapeHtml(scoreSummary)}${escapeHtml(entry.sessionTitle)}
     </h2>
     <div style="font-size: 13px; color: #444;">
-      Status: <strong>${status}</strong> | Duration: <strong>${durationSec}s</strong> | Captured Lines: <strong>${lineCount}</strong>${truncated ? ' <em>(truncated)</em>' : ''}
+      Turns: <strong>${entry.turns.length}</strong> | Status: <strong>${overallStatus}</strong> | Total Duration: <strong>${totalDurationSec}s</strong> | Total Log Lines: <strong>${totalLines}</strong>
     </div>
-    ${errorMessage ? `<div style="margin-top: 6px; color: #721c24; font-weight: 600;">Error: ${escapeHtml(errorMessage)}</div>` : ''}
   </div>
 
   <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
-    <tr><td style="padding: 5px 0; font-weight: bold; width: 130px;">Submission ID:</td><td><code>${escapeHtml(submissionId)}</code></td></tr>
-    <tr><td style="padding: 5px 0; font-weight: bold;">Session ID:</td><td><code>${escapeHtml(String(sessionId || result?.sessionId || 'N/A'))}</code></td></tr>
-    <tr><td style="padding: 5px 0; font-weight: bold;">User:</td><td><code>${escapeHtml(userId)}</code> ${userEmail ? `(${escapeHtml(userEmail)})` : ''}</td></tr>
-    <tr><td style="padding: 5px 0; font-weight: bold;">Model:</td><td><code>${escapeHtml(model)}</code></td></tr>
-    ${questionBreakdown.length > 0 ? `<tr><td style="padding: 5px 0; font-weight: bold; vertical-align: top;">Breakdown:</td><td>${escapeHtml(questionBreakdown.join('  |  '))}</td></tr>` : ''}
+    <tr><td style="padding: 5px 0; font-weight: bold; width: 130px;">Session ID:</td><td><code>${escapeHtml(entry.sessionId)}</code></td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">User:</td><td><code>${escapeHtml(entry.userId)}</code> ${entry.userEmail ? `(${escapeHtml(entry.userEmail)})` : ''}</td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">Models:</td><td><code>${escapeHtml(modelsUsed)}</code></td></tr>
+    <tr><td style="padding: 5px 0; font-weight: bold;">Activity Window:</td><td>${escapeHtml(entry.createdAt)} → ${escapeHtml(entry.lastActivityAt)}</td></tr>
+    ${latestBreakdown.length > 0 ? `<tr><td style="padding: 5px 0; font-weight: bold; vertical-align: top;">Breakdown:</td><td>${escapeHtml(latestBreakdown.join('  |  '))}</td></tr>` : ''}
   </table>
 
-  <h3 style="font-size: 14px; margin: 16px 0 6px 0;">Tail Preview (Last 30 Lines — Full Terminal Log Attached)</h3>
-  <pre style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-size: 11px; overflow-x: auto; white-space: pre-wrap;">${escapeHtml(tailPreview || '(No log lines captured)')}</pre>
+  <h3 style="font-size: 14px; margin: 16px 0 6px 0;">Uploaded Files</h3>
+  ${filesHtml}
+
+  <h3 style="font-size: 14px; margin: 18px 0 8px 0;">Session Turns (${entry.turns.length})</h3>
+  ${turnsHtml}
 </div>`,
         attachments: [
           {
-            filename: `marking-log-${safeSubId}.txt`,
-            content: logsText || '(No log output captured)',
+            filename: `session-digest-${safeSessionId}.txt`,
+            content: combinedLogsText || '(No log output captured)',
             contentType: 'text/plain; charset=utf-8',
           },
         ],
       });
 
-      console.log(`📧 [ADMIN-ALERT] Marking log email sent to ${adminEmail} (${lineCount} lines, ${durationSec}s)`);
+      console.log(`📧 [ADMIN-ALERT] Session digest email sent for ${entry.sessionId} (${entry.turns.length} turns, ${totalLines} lines, ${totalDurationSec}s)`);
     } catch (emailErr) {
-      console.error('❌ [ADMIN-ALERT] Failed to send marking log email:', emailErr);
+      console.error('❌ [ADMIN-ALERT] Failed to send session digest email:', emailErr);
     }
+  }
+
+  /**
+   * Backwards-compatible wrapper that records a marking/question/remark turn
+   * into the idle-timeout session digest for `sessionId`.
+   */
+  public static async notifyMarkingLog(params: {
+    submissionId: string;
+    sessionId?: string;
+    userId?: string;
+    userEmail?: string;
+    model?: string;
+    isRemark?: boolean;
+    turnType?: SessionTurnType;
+    result?: any;
+    error?: any;
+    userInput?: string;
+    aiResponse?: string;
+    uploadedFiles?: SessionDigestUploadedFile[];
+    logsText: string;
+    lineCount: number;
+    durationMs: number;
+    truncated?: boolean;
+  }): Promise<void> {
+    const inferredTurnType: SessionTurnType =
+      params.turnType ||
+      (params.isRemark
+        ? 'REMARK'
+        : params.result?.mode === 'Question'
+          ? 'QUESTION_MODE'
+          : 'MARKING');
+
+    this.recordSessionTurn({
+      ...params,
+      turnType: inferredTurnType,
+    });
   }
 }

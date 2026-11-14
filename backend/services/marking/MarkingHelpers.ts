@@ -1707,6 +1707,17 @@ export function logDetectionAudit(detectionResults: any[]): void {
   });
 
   console.log('------------------------------------------------------------------------------------------------------------------------------------\n');
+
+  // Log full extracted question text per detected/undetected question (Point 3)
+  if (detectionResults.length > 0) {
+    console.log('📝 [DETECTION FULL EXTRACTED TEXT]');
+    detectionResults.forEach((item, idx) => {
+      const qNum = item.question?.questionNumber || `${idx + 1}`;
+      const fullText = (item.question?.text || '').trim();
+      console.log(`--- Q${qNum} (Extracted Full Text) ---\n${fullText || '(empty)'}`);
+    });
+    console.log('------------------------------------------------------------------------------------------------------------------------------------\n');
+  }
 }
 /**
  * Generates a diagnostic table comparing Student Work vs. AI Selection vs. Actual OCR Content

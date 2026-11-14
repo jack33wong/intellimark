@@ -714,7 +714,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           )}
 
           {/* Suggested Follow-ups */}
-          {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+          {!isUser && (message.detectedQuestion?.found || (message.detectedQuestion as any)?.questions?.length > 0 || (message.detectedQuestion?.examPapers?.length ?? 0) > 0) && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons suggestions={message.suggestedFollowUps as string[]} onSuggestionClick={handleFollowUpClick} disabled={isAnyMessageProcessing} />
           )}
 
