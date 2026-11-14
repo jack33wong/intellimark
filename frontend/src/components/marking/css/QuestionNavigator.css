@@ -225,3 +225,35 @@
     background-color: var(--surface-tertiary);
     color: var(--text-primary);
 }
+
+@media (max-width: 768px) {
+    .ribbon-nav-row {
+        gap: 4px;
+    }
+
+    .ribbon-scroll-container {
+        gap: 4px;
+    }
+
+    .ribbon-item {
+        padding: 4px 8px;
+        gap: 4px;
+        font-size: 0.82rem;
+        min-height: 28px;
+    }
+
+    .ribbon-item.active {
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        transform: scale(1.04);
+    }
+
+    .score-text {
+        font-size: 0.72rem;
+    }
+
+    .nav-arrow {
+        width: 24px;
+        height: 24px;
+    }
+}

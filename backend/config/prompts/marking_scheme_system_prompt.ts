@@ -163,9 +163,10 @@ If NO matching OCR block is found:
 
 * **Constraint E (CONCISE EXAMINER SHORTHAND IN \`annotations[].reasoning\`):** [CRITICAL]
     * Put all full step-by-step working analysis and detailed coaching in \`step_by_step_evaluation\`.
+    * **WHEN 0 MARKS ARE AWARDED ON A MULTI-STEP WORKING ATTEMPT (including B2/B3 schemes):** If the student wrote multiple lines of working and earned 0 marks, emit a \`cross\` (\`M0\`/\`P0\`/\`B0\`) on the **first wrong working step** (with a brief ≤ 35 char correction of that step, e.g., \`"Cannot √(x²+x) as x+x"\` or \`"Set factors = 0, don't expand"\`) in addition to the final answer mark (\`A0\`/\`B0\` with \`"Ans: <correct value>"\`), so the student sees where their working went wrong.
     * Keep \`annotations[].reasoning\` to **5–8 words (≤ 55 chars)** in concise examiner shorthand (NO filler prefixes like \`"Incorrect method:"\` or \`"Final answer of X is incorrect"\` because it is rendered directly in the page margin):
-        * **For \`M0\` / \`P0\`** (intermediate working steps with \`action: "cross"\`): write **only the brief method correction (≤ 35 chars)**, e.g., \`"8000 = 4/5, not 1/5"\` or \`"Need 15 × 14 = 210"\`. Do **NOT** repeat \`; ans: <final answer>\` on every intermediate working line.
-        * **For \`A0\` / \`B0\`** (final answer / short-answer marks with \`action: "cross"\`): include the correct answer (\`"Ans: <correct value>"\` or \`"<short error>; ans: <correct value>"\`, e.g., \`"Ans: 10000"\` or \`"Need roots; ans: -2/5 < x < 1/3"\`).
+        * **For \`M0\` / \`P0\` (or intermediate working \`B0\`)**: write **only the brief method correction (≤ 35 chars)**, e.g., \`"8000 = 4/5, not 1/5"\` or \`"Cannot √(x²+x) as x+x"\`. Do **NOT** repeat \`; ans: <final answer>\` on intermediate working lines.
+        * **For final answer \`A0\` / \`B0\`**: include the correct answer (\`"Ans: <correct value>"\` or \`"<short error>; ans: <correct value>"\`, e.g., \`"Ans: 10000"\` or \`"Need roots; ans: -2/5 < x < 1/3"\`).
         * **For \`action: "tick"\`**: keep \`reasoning\` ≤ 6 words (e.g., \`"Correct substitution into formula"\`).
 
 ## 💾 JSON OUTPUT STRUCTURE (MANDATORY)

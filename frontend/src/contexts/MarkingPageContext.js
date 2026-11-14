@@ -457,8 +457,9 @@ export const MarkingPageProvider = ({
 
       // 2. Only close an already-open global panel if genuine exit conditions are met.
       // (We check isGlobalSplit to ensure we don't close a modal the user manually clicked open)
-      // CRITICAL: DO NOT close just because AI is thinking or processing a follow-up action!
-      const shouldCloseExisting = isMobile || isQuestionMode || isUserClosed || !newImages || newImages.length === 0;
+      // CRITICAL: DO NOT close on mobile just because a follow-up action or session update occurred!
+      // On mobile, splitModeImages is only populated when the user explicitly opens the ImageViewer overlay.
+      const shouldCloseExisting = isQuestionMode || isUserClosed || !newImages || newImages.length === 0;
       if (splitModeImages && splitModeImages.length > 0 && shouldCloseExisting && isGlobalSplit) {
          dispatch({ type: 'EXIT_SPLIT_MODE' });
          return;

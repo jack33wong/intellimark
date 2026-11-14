@@ -583,6 +583,14 @@ export class SessionManagementService {
         responseAiMessage.questionResponses.forEach(qr => {
           const annos = qr.annotations || [];
           console.log(`[UI DEBUG] Q${qr.questionNumber} | Page: ${qr.pageIndex} | Annotations (${annos.length}): ${annos.map((a: any) => a.subQuestion || '?').join(', ')}`);
+          annos.forEach((a: any, idx: number) => {
+            const sym = a.action === 'tick' ? '✓' : (a.action === 'cross' ? '✗' : (a.action || '?'));
+            const code = a.text || '';
+            const bbox = a.snappedBbox || a.bbox;
+            const posStr = Array.isArray(bbox) && bbox.length >= 2 ? `(${Math.round(bbox[0])},${Math.round(bbox[1])})` : '(no-bbox)';
+            const comment = a.reasoning ? ` "${String(a.reasoning).replace(/\s+/g, ' ').trim()}"` : '';
+            console.log(`   [${idx + 1}] ${sym} ${code} @ ${posStr}${comment}`);
+          });
         });
 
         console.log(`\n======================================================`);

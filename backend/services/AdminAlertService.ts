@@ -648,21 +648,30 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
       const status = error ? 'FAILED' : 'OK';
 
       // Extract score & paper info safely from pipeline result
-      const scoreObj = result?.studentScore || result?.submissionResult?.studentScore;
+      const scoreObj =
+        result?.studentScore ||
+        result?.submissionResult?.studentScore ||
+        result?.aiMessage?.studentScore;
+      const metaScore = result?.metadata;
       const scoreText =
         scoreObj?.scoreText ||
         (typeof scoreObj?.awardedMarks === 'number' && typeof scoreObj?.totalMarks === 'number'
           ? `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`
-          : 'N/A');
+          : typeof metaScore?.totalScore === 'number' && typeof metaScore?.maxScore === 'number' && metaScore.maxScore > 0
+            ? `${metaScore.totalScore}/${metaScore.maxScore}`
+            : 'N/A');
 
       const detectedQ = result?.detectedQuestion || result?.submissionResult?.detectedQuestion;
       const firstPaper = detectedQ?.examPapers?.[0];
-      const paperTitle =
+      const sessionTitle =
+        result?.sessionTitle ||
+        result?.unifiedSession?.title ||
+        result?.submissionResult?.sessionTitle ||
         result?.paperTitle ||
         (firstPaper
           ? [firstPaper.examBoard, firstPaper.subject, firstPaper.examCode].filter(Boolean).join(' ')
           : '') ||
-        'General Marking';
+        'Marking Session';
 
       // Extract per-question score breakdown if available
       const qResults: any[] =
@@ -685,7 +694,7 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
 
       const safeSubId = String(submissionId || 'marking').replace(/[^a-zA-Z0-9_-]/g, '_');
       const subjectPrefix = isRemark ? '[REMARK LOG]' : '[MARKING LOG]';
-      const emailSubject = `${subjectPrefix} ${scoreText} | ${paperTitle} | ${status} | ${durationSec}s`;
+      const emailSubject = `${subjectPrefix} ${scoreText} | ${sessionTitle} | ${status} | ${durationSec}s`;
 
       const logLines = logsText ? logsText.split('\n') : [];
       const tailPreview = logLines.slice(-30).join('\n');
@@ -705,7 +714,7 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
           `Session ID: ${sessionId || result?.sessionId || 'N/A'}`,
           `User: ${userEmail || userId}`,
           `Model: ${model}`,
-          `Paper: ${paperTitle}`,
+          `Session: ${sessionTitle}`,
           `Score: ${scoreText}`,
           `Duration: ${durationSec}s | Log Lines: ${lineCount}${truncated ? ' (truncated at 2MB/5000 lines)' : ''}`,
           questionBreakdown.length > 0 ? `Questions: ${questionBreakdown.join(', ')}` : '',
@@ -719,7 +728,7 @@ ${funnel.map(f => `[${f.timestamp}] ${f.event} (${f.path || '/'})`).join('\n')}
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 780px; margin: 0 auto; color: #222; line-height: 1.5;">
   <div style="background: ${error ? '#f8d7da' : '#e8f5e9'}; border-left: 5px solid ${error ? '#dc3545' : '#2e7d32'}; padding: 14px 16px; border-radius: 4px; margin-bottom: 16px;">
     <h2 style="margin: 0 0 4px 0; font-size: 18px; color: ${error ? '#721c24' : '#1b5e20'};">
-      ${error ? '❌' : '✅'} ${subjectPrefix} ${escapeHtml(scoreText)} — ${escapeHtml(paperTitle)}
+      ${error ? '❌' : '✅'} ${subjectPrefix} ${escapeHtml(scoreText)} — ${escapeHtml(sessionTitle)}
     </h2>
     <div style="font-size: 13px; color: #444;">
       Status: <strong>${status}</strong> | Duration: <strong>${durationSec}s</strong> | Captured Lines: <strong>${lineCount}</strong>${truncated ? ' <em>(truncated)</em>' : ''}

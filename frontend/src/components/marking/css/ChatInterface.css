@@ -1379,6 +1379,64 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   color: var(--background-gray-main);
 }
 
+/* Compact Overlapping Marked-Page Thumbnail Stack in Ribbon Row */
+.ribbon-thumbnail-stack-wrapper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-main);
+  margin-left: 6px;
+}
+
+.ribbon-thumbnail-stack-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-main);
+  background: var(--fill-tsp-gray-main, rgba(0, 0, 0, 0.04));
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.ribbon-thumbnail-stack-btn:hover {
+  background: var(--fill-tsp-gray-dark, rgba(0, 0, 0, 0.08));
+}
+
+.ribbon-thumbnail-stack-btn:active {
+  transform: scale(0.96);
+}
+
+.ribbon-thumbnail-stack {
+  display: flex;
+  align-items: center;
+}
+
+.ribbon-thumbnail-item {
+  width: 32px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1.5px solid var(--background-gray-main);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: var(--background-card, #1e1e1e);
+  flex-shrink: 0;
+}
+
+.ribbon-thumbnail-item + .ribbon-thumbnail-item {
+  margin-left: -10px;
+}
+
+.ribbon-thumbnail-more {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* Specific blur transition at the bottom edge of the header */
 .marking-header-unified::after {
   content: "";
@@ -1595,6 +1653,15 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
     gap: 4px !important;
   }
 
+  .question-navigator-ribbon-container {
+    padding-right: 0;
+  }
+
+  .ribbon-thumbnail-stack-wrapper {
+    padding-left: 6px;
+    margin-left: 2px;
+  }
+
   /* Compact Question Navigator */
   .question-breakdown-container {
     padding: 2px 0 !important;
@@ -1620,12 +1687,12 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
     background: var(--background-gray-main);
   }
 
-  /* Move scroll button to bottom-right on mobile to avoid overlap */
+  /* Center scroll button above input on mobile */
   .scroll-to-bottom-container {
-    bottom: 90px;
-    left: auto;
-    right: 20px;
-    transform: none;
+    bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 
   .scroll-to-bottom-btn {

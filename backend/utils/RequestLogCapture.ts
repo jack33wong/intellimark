@@ -27,7 +27,8 @@ function appendToActiveStore(level: 'LOG' | 'INFO' | 'WARN' | 'ERROR', args: any
   if (!store || store.truncated) return;
 
   const timestamp = new Date().toISOString();
-  const formatted = formatWithOptions({ depth: 3, maxStringLength: 1000, colors: false }, ...args);
+  const formatted = formatWithOptions({ depth: 3, maxStringLength: 1000, colors: false }, ...args)
+    .replace(/\x1b\[[0-9;]*m/g, '');
   const entry = `[${timestamp}] [${level}] ${formatted}`;
 
   if (store.lines.length >= MAX_LINES || store.totalChars + entry.length > MAX_CHARS) {

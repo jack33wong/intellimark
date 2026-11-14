@@ -476,8 +476,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     message.type === 'question_response' ||
     !!(message as any).contextQuestionId;
 
+  const contextQuestionAttr = (message as any).contextQuestionId
+    ? String((message as any).contextQuestionId).toLowerCase()
+    : undefined;
+
   return (
-    <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`} data-message-id={message.id}>
+    <div
+      className={`chat-message ${isUser ? 'user' : 'assistant'} ${message.type === 'question_response' ? 'question-mode-response' : ''}`}
+      data-message-id={message.id}
+      data-context-question-id={contextQuestionAttr}
+      style={contextQuestionAttr ? { scrollMarginTop: '110px' } : undefined}
+    >
       <div className="chat-message-content">
         <div className={`chat-message-bubble ${hasYourWork ? 'has-your-work' : ''}`}>
           {!isUser && (

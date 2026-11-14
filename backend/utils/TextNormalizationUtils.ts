@@ -475,9 +475,20 @@ export function latexToPlainText(text: string | null | undefined): string {
   plain = plain.replace(/\$/g, '');
 
   // 2. Common LaTeX commands to readable equivalents
-  // Improved non-greedy match for braces
+  // Resolve inner commands (\sqrt, superscripts/subscripts) BEFORE \frac so nested braces like \frac{\sqrt{30}}{30} resolve cleanly
   plain = plain
-    .replace(/\\frac\s*\{([^}]+)\}\s*\{([^}]+)\}/g, '$1/$2')
+    .replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)')
+    .replace(/\\sqrt\s*([a-zA-Z0-9]+)/g, '√$1')
+    .replace(/\^\{([^{}]*)\}/g, '^$1')
+    .replace(/_\{([^{}]*)\}/g, '_$1');
+
+  // Iteratively resolve \frac{num}{den} from innermost to outermost
+  for (let i = 0; i < 3; i++) {
+    plain = plain.replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2');
+  }
+
+  plain = plain
+    .replace(/√\((\d+|[a-zA-Z])\)/g, '√$1')
     .replace(/\\times/g, '×')
     .replace(/\\div/g, '÷')
     .replace(/\\pm/g, '±')
@@ -486,7 +497,6 @@ export function latexToPlainText(text: string | null | undefined): string {
     .replace(/\\neq/g, '≠')
     .replace(/\\approx/g, '≈')
     .replace(/\\degree/g, '°')
-    .replace(/\\sqrt\s*\{([^}]+)\}/g, '√$1')
     .replace(/\\cdot/g, '·')
     .replace(/\\alpha/g, 'α')
     .replace(/\\beta/g, 'β')

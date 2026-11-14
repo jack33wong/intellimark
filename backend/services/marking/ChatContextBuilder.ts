@@ -153,6 +153,7 @@ export class ChatContextBuilder {
                 hasScheme: !!scheme,
                 pageIndex: qr.pageIndex,
                 parts: parts,
+                studentWork: typeof qr.studentWork === 'string' ? qr.studentWork : undefined,
                 rubricEvaluation: (qr as any).rubricEvaluation || undefined
             };
         });
@@ -332,18 +333,29 @@ export class ChatContextBuilder {
             } else {
                 // MARKING MODE: Show Student Work + Marks + Scheme
                 prompt += `** Your Answer **:\n`;
-                q.parts.forEach(part => {
-                    // Display each mark's work
-                    part.marks.forEach(mark => {
-                        if (mark.work) {
-                            if (part.part) {
-                                prompt += `[${formatPartLabel(q.number, part.part)}] ${mark.work}\n`;
-                            } else {
-                                prompt += `${mark.work}\n`;
+                const rawFullTranscript = (q as any).studentWork
+                    ? String((q as any).studentWork)
+                        .split('\n')
+                        .map((l: string) => l.replace(/\[ID:[^\]]+\]\s*/g, '').trim())
+                        .filter((l: string) => l && !/^student'?s?\s*work:?$/i.test(l))
+                        .join('\n')
+                    : '';
+                if (rawFullTranscript) {
+                    prompt += `${rawFullTranscript}\n`;
+                } else {
+                    q.parts.forEach(part => {
+                        // Display each mark's work
+                        part.marks.forEach(mark => {
+                            if (mark.work) {
+                                if (part.part) {
+                                    prompt += `[${formatPartLabel(q.number, part.part)}] ${mark.work}\n`;
+                                } else {
+                                    prompt += `${mark.work}\n`;
+                                }
                             }
-                        }
+                        });
                     });
-                });
+                }
 
                 prompt += `** Your Marks ** (Total: ${q.earnedMarks}/${q.totalMarks}):\n`;
 

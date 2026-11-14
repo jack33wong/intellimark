@@ -35,20 +35,34 @@
   right: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 12px 20px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
   z-index: 20;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .image-mode-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   backdrop-filter: blur(32px);
   border-radius: 8px;
   background: var(--background-nav);
   padding: 4px 8px;
+  margin: 0 auto;
+  max-width: calc(100% - 36px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.image-mode-controls::-webkit-scrollbar {
+  display: none;
+}
+
+.image-mode-controls > * {
+  flex-shrink: 0;
 }
 
 /* Zoom controls */
@@ -58,11 +72,20 @@
   gap: 6px;
 }
 
-/* PDF-style page stepper controls */
+/* Segmented Page Stepper Pill: [ ↑ | 12 / 21 | ↓ ] */
 .page-stepper-controls {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border-main, #d1d5db);
+  background: var(--background-white-main, rgba(255, 255, 255, 0.85));
+  overflow: hidden;
+}
+
+.page-stepper-controls.mistake-mode {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(254, 242, 242, 0.9);
 }
 
 .page-step-btn {
@@ -70,31 +93,49 @@
   align-items: center;
   justify-content: center;
   width: 26px;
-  height: 26px;
+  height: 100%;
   border: none;
-  background: none;
-  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
   color: var(--icon-primary, #374151);
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.page-stepper-controls.mistake-mode .page-step-btn {
+  color: #b91c1c;
 }
 
 .page-step-btn:hover:not(:disabled) {
-  background: var(--fill-tsp-white-main, rgba(255, 255, 255, 0.8));
+  background: var(--fill-tsp-white-main, rgba(0, 0, 0, 0.06));
+}
+
+.page-step-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .page-step-counter {
-  font-size: 13px;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-primary, #111827);
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 8px;
+  border-left: 1px solid var(--border-main, #e5e7eb);
+  border-right: 1px solid var(--border-main, #e5e7eb);
   font-variant-numeric: tabular-nums;
 }
 
-/* Mistakes filter pill & Next Mistake button */
+.page-stepper-controls.mistake-mode .page-step-counter {
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+/* Mistakes filter pill & Explain button */
 .mistakes-filter-pill,
-.next-mistake-btn,
 .viewer-explain-btn {
   display: inline-flex;
   align-items: center;
@@ -125,20 +166,15 @@
   color: #ffffff;
 }
 
-.next-mistake-btn {
-  border: 1px solid var(--border-main, #d1d5db);
-  background: var(--background-white-main, #ffffff);
-  color: var(--text-primary, #111827);
-}
-
-.next-mistake-btn:hover {
-  background: var(--fill-tsp-white-main, rgba(243, 244, 246, 0.9));
-}
-
 .viewer-explain-btn {
   border: 1px solid rgba(124, 58, 237, 0.35);
-  background: rgba(124, 58, 237, 0.1);
-  color: #6d28d9;
+  background: rgba(124, 58, 237, 0.16);
+  color: var(--text-primary);
+}
+
+.viewer-explain-btn.has-explanation {
+  border-color: rgba(124, 58, 237, 0.55);
+  background: rgba(124, 58, 237, 0.16);
 }
 
 .viewer-explain-btn:hover:not(:disabled) {
@@ -248,14 +284,17 @@
 }
 
 /* Close button */
-.close-btn {
-  position: absolute;
-  right: 20px;
+.image-mode-header .close-btn {
+  position: static;
+  top: auto;
+  right: auto;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: none;
   background: none;
   border-radius: 4px;
@@ -264,12 +303,13 @@
   transition: background-color 0.2s ease;
 }
 
-.close-btn:hover {
+.image-mode-header .close-btn:hover {
   background: var(--fill-tsp-white-main, rgba(255, 255, 255, 0.8));
 }
 
 /* Main content area */
 .image-mode-content {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -484,7 +524,7 @@
   }
 
   .image-mode-controls,
-  .close-btn {
+  .image-mode-header .close-btn {
     pointer-events: auto;
     /* Re-enable clicks on buttons */
     background: var(--background-nav);
@@ -495,11 +535,30 @@
   }
 
   .image-mode-controls {
-    padding: 4px;
-    gap: 8px;
-    transform: scale(0.9);
-    /* Slightly smaller */
-    transform-origin: left top;
+    padding: 4px 6px;
+    gap: 5px;
+    max-width: calc(100% - 44px);
+    margin: 0;
+  }
+
+  .mistakes-filter-pill {
+    height: 24px;
+    padding: 0 7px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .page-stepper-controls {
+    height: 24px;
+  }
+
+  .page-step-btn {
+    width: 24px;
+  }
+
+  .page-step-counter {
+    font-size: 11px;
+    padding: 0 6px;
   }
 
   /* Ensure icons are visible in both modes */
@@ -507,14 +566,15 @@
   .image-mode-controls .rotate-btn,
   .image-mode-controls .download-btn,
   .image-mode-controls .download-all-btn,
-  .close-btn {
+  .image-mode-header .close-btn {
     color: var(--icon-primary);
   }
 
-  .close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+  .image-mode-header .close-btn {
+    position: static;
+    top: auto;
+    right: auto;
+    flex-shrink: 0;
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -540,38 +600,37 @@
   }
 
   .thumbnail-sidebar {
-    width: 36px;
-    /* 36px for all mobile */
+    width: 44px;
     padding-top: 0;
     /* Align with image top */
   }
 
   .thumbnail-list {
-    width: 36px;
+    width: 44px;
     padding-right: 2px;
   }
 
   .thumbnail-btn {
-    width: 28px;
-    /* Smaller buttons for 36px sidebar */
-    height: 28px;
+    width: 38px;
+    height: 38px;
     margin-bottom: 6px;
   }
 
   .thumbnail-btn.active {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
   }
 
-  /* Mobile-friendly badges */
+  /* Mobile-friendly badges: fit full "Q3 4/5" without ellipsis truncation */
   .thumbnail-badge {
     font-size: 8px;
-    padding: 1px 2px;
+    letter-spacing: -0.3px;
+    padding: 1px 1px;
     bottom: 0;
     left: 0;
     right: 0;
     border-radius: 0;
-    /* Keep it full width at bottom */
+    text-overflow: clip;
   }
 }
 
@@ -646,7 +705,7 @@
 .viewer-mobile-explain-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid rgba(124, 58, 237, 0.35);
@@ -656,6 +715,13 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.viewer-mobile-explain-chip.has-explanation {
+  border-color: rgba(124, 58, 237, 0.6);
+  background: rgba(124, 58, 237, 0.18);
+  color: #7c3aed;
 }
 
 .viewer-mobile-explain-chip:disabled {
@@ -711,7 +777,7 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
-  max-height: 48%;
+  max-height: 52%;
   display: flex;
   flex-direction: column;
   background: var(--background-nav, rgba(255, 255, 255, 0.96));
@@ -720,24 +786,28 @@
   border: 1px solid var(--border-main, #e2e8f0);
   border-radius: 14px;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.16);
-  z-index: 30;
+  z-index: 40;
   overflow: hidden;
-  transition: max-height 0.22s ease;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .viewer-mobile-response-sheet.collapsed {
-  max-height: 40px;
+  max-height: none;
+  height: auto;
 }
 
 .viewer-mobile-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 38px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-main, #e2e8f0);
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .viewer-mobile-response-sheet.collapsed .viewer-mobile-sheet-header {
@@ -763,18 +833,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--icon-primary, #374151);
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .viewer-mobile-sheet-body {
   padding: 10px 12px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-primary, #111827);

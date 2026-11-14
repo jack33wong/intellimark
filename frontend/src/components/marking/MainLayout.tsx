@@ -5,7 +5,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactDOM from 'react-dom';
-import { ChevronDown, Brain } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
@@ -76,7 +76,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     activeQuestionId,
     setActiveQuestionId,
     isContextFilterActive,
-    setContextFilterActive,
     isQuestionTableVisible,
     visibleTableIds,
     isNegative,
@@ -239,17 +238,33 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
     // 3. Scroll Chat (only if triggered by ribbon or image)
     if (source !== 'scroll') {
-      const targetId = `question-${String(qNum).toLowerCase()}`;
-      const el = document.getElementById(targetId);
+      const normalizedQ = String(qNum).toLowerCase();
+      // Prefer scrolling to the latest follow-up explanation message for this question if one exists
+      const followUpForQ = [...(chatMessages || [])]
+        .reverse()
+        .find((m: any) =>
+          m.role === 'assistant' &&
+          !m.markingContext &&
+          m.type !== 'marking_annotated' &&
+          !m.performanceSummary &&
+          String(m.contextQuestionId || '').toLowerCase() === normalizedQ
+        );
 
-      if (el) {
-        // Native scroll with the CSS/inline scroll-margin-top handles the offset
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (followUpForQ) {
+        scrollToMessage(followUpForQ.id, { behavior: 'smooth', block: 'start' });
       } else {
-        // Fallback: search for the message containing this question if the specific header hasn't rendered yet
-        const msg = chatMessages.find((m: any) => String(m.contextQuestionId) === String(qNum));
-        if (msg) {
-          scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
+        const targetId = `question-${normalizedQ}`;
+        const el = document.getElementById(targetId);
+
+        if (el) {
+          // Native scroll with the CSS/inline scroll-margin-top handles the offset
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Fallback: search for any message containing this question if the specific header hasn't rendered yet
+          const msg = chatMessages.find((m: any) => String(m.contextQuestionId || '').toLowerCase() === normalizedQ);
+          if (msg) {
+            scrollToMessage(msg.id, { behavior: 'smooth', block: 'start' });
+          }
         }
       }
     }
@@ -258,7 +273,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     setTimeout(() => {
       isSyncingRef.current = false;
     }, 1000);
-  }, [currentSession, setActiveQuestionId, setActiveImageIndex, enterSplitMode, groupedQuestions, splitModeImages, activeImageIndex]);
+  }, [currentSession, chatMessages, scrollToMessage, setActiveQuestionId, setActiveImageIndex, enterSplitMode, groupedQuestions, splitModeImages, activeImageIndex]);
 
   // Setup Centralized Scroll-Spy Observer
   useEffect(() => {
@@ -271,7 +286,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
     // Create a NEW observer for the container
     const observer = new IntersectionObserver((entries) => {
-      // Determine which header is most prominent at the top
+      // Determine which header or follow-up message is most prominent at the top
       const visibleHeaders = entries
         .filter(entry => entry.isIntersecting)
         .sort((a, b) => {
@@ -283,8 +298,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
       if (visibleHeaders.length > 0) {
         const topHeader = visibleHeaders[0];
-        const qId = topHeader.target.id;
-        const qNum = qId.replace('question-', '');
+        const targetEl = topHeader.target as HTMLElement;
+        const qId = targetEl.id;
+        const contextQ = targetEl.getAttribute('data-context-question-id');
+        const qNum = qId && qId.startsWith('question-')
+          ? qId.replace('question-', '')
+          : (contextQ || '');
 
         if (qNum) {
           // 1. Check ID change (Idempotency)
@@ -312,9 +331,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
 
     scrollSpyObserverRef.current = observer;
 
-    // We need to observe all elements with id="question-*"
+    // We need to observe all elements with id="question-*" and follow-up messages with data-context-question-id
     const updateObservations = () => {
-      const questionElements = containerElement.querySelectorAll('[id^="question-"]');
+      const questionElements = containerElement.querySelectorAll('[id^="question-"], [data-context-question-id]');
       questionElements.forEach(el => observer.observe(el));
     };
 
@@ -435,6 +454,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   }, [splitModeImages, enterSplitMode, activeImageIndex, setActiveImageIndex, groupedQuestions, activeQuestionId, setActiveQuestionId, sortQuestionsByMistakePriority]);
 
   // Reusable Ribbon Render Function
+  const ribbonSessionImages = useMemo(
+    () => (currentSession ? getSessionImages(currentSession) : []),
+    [currentSession]
+  );
+
   const renderQuestionRibbon = (isChatMode: boolean) => {
     if (!currentSession || groupedQuestions.length === 0) return null;
 
@@ -481,6 +505,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
   const activeQuestionMeta = useMemo(() => {
     const currentIdx = activeImageIndex || 0;
     const img = splitModeImages?.[currentIdx];
+    const isAnnotated = img?.messageRole === 'assistant' || img?.messageType === 'marking_annotated';
+    if (!isAnnotated) return null;
     const pageIdx = img?.pageIndex ?? currentIdx;
 
     if (activeQuestionId) {
@@ -524,9 +550,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
     return null;
   }, [activeQuestionId, activeImageIndex, splitModeImages, groupedQuestions, sortQuestionsByMistakePriority]);
 
+  // Lock Scroll-Spy during active processing/AI thinking (and briefly after) so auto-scrolling to a new follow-up message never hijacks activeQuestionId or activeImageIndex
+  useEffect(() => {
+    if (isProcessing || isAIThinking) {
+      isSyncingRef.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [isProcessing, isAIThinking]);
+
   const handleViewerSendFollowUp = useCallback(async (rawText: string, questionNumber?: string | null) => {
     const trimmed = rawText.trim();
     if (!trimmed || !onSendMessage) return;
+    isSyncingRef.current = true;
     const targetQ = questionNumber || activeQuestionMeta?.questionNumber || activeQuestionId || null;
     if (targetQ) {
       setActiveQuestionId(String(targetQ));
@@ -536,27 +575,68 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
       ? `[Question ${targetQ}] ${trimmed}`
       : trimmed;
     await onSendMessage(formattedPrompt);
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 1000);
   }, [onSendMessage, activeQuestionMeta, activeQuestionId, setActiveQuestionId]);
 
-  const latestFollowUpResponse = useMemo(() => {
-    if (!chatMessages || chatMessages.length === 0) return null;
-    const followUpAssistantMsgs = chatMessages.filter(
-      (m: any) =>
-        m.role === 'assistant' &&
-        !m.markingContext &&
-        m.type !== 'marking_annotated' &&
-        !m.performanceSummary &&
-        !m.studentScore &&
-        ensureStringContent(m.content).trim().length > 0
-    );
-    if (followUpAssistantMsgs.length === 0) return null;
-    const latest = followUpAssistantMsgs[followUpAssistantMsgs.length - 1] as any;
-    return {
-      id: String(latest.id || followUpAssistantMsgs.length),
-      questionNumber: latest.contextQuestionId ? String(latest.contextQuestionId) : (activeQuestionMeta?.questionNumber || null),
-      content: ensureStringContent(latest.content)
+  const followUpResponsesByQuestion = useMemo(() => {
+    const map = new Map<string, { id: string; questionNumber: string; content: string }>();
+    if (!chatMessages || chatMessages.length === 0) return map;
+
+    const extractQFromText = (txt: string): string | null => {
+      const m = txt.match(/(?:question|q)\s*(\d+[a-z]*)/i);
+      return m ? m[1] : null;
     };
-  }, [chatMessages, ensureStringContent, activeQuestionMeta]);
+
+    for (let i = 0; i < chatMessages.length; i++) {
+      const msg = chatMessages[i] as any;
+      if (
+        msg.role === 'assistant' &&
+        !msg.markingContext &&
+        msg.type !== 'marking_annotated' &&
+        !msg.performanceSummary &&
+        !msg.studentScore
+      ) {
+        const contentStr = ensureStringContent(msg.content).trim();
+        if (!contentStr) continue;
+        const prevUser = i > 0 && chatMessages[i - 1]?.role === 'user' ? (chatMessages[i - 1] as any) : null;
+        const resolvedQ =
+          msg.contextQuestionId ||
+          prevUser?.contextQuestionId ||
+          extractQFromText(ensureStringContent(prevUser?.content || '')) ||
+          extractQFromText(contentStr);
+        if (resolvedQ) {
+          const key = String(resolvedQ).toLowerCase();
+          map.set(key, {
+            id: String(msg.id || i),
+            questionNumber: String(resolvedQ),
+            content: contentStr
+          });
+        }
+      }
+    }
+    return map;
+  }, [chatMessages, ensureStringContent]);
+
+  const activeQuestionFollowUpResponse = useMemo(() => {
+    const activeQ = activeQuestionMeta?.questionNumber || activeQuestionId;
+    if (activeQ) {
+      const matched = followUpResponsesByQuestion.get(String(activeQ).toLowerCase());
+      if (matched) return matched;
+    }
+    return null;
+  }, [activeQuestionMeta, activeQuestionId, followUpResponsesByQuestion]);
+
+  const hasExplanationForActiveQuestion = Boolean(activeQuestionFollowUpResponse);
+
+  const handleFocusExistingExplanation = useCallback((questionNumber: string) => {
+    if (!questionNumber) return;
+    const normalizedQ = String(questionNumber).toLowerCase();
+    const match = groupedQuestions.find(g => String(g.questionNumber).toLowerCase() === normalizedQ);
+    const imgIdx = match ? match.sourceImageIndex : (activeImageIndex || 0);
+    navigateToQuestion(questionNumber, imgIdx, 'image');
+  }, [groupedQuestions, activeImageIndex, navigateToQuestion]);
 
   // Common Chat Content Render Function to reuse in both modes
   const renderChatContent = () => {
@@ -588,18 +668,47 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                 {renderQuestionRibbon(true)}
               </div>
 
-              {activeQuestionId && (
-                <div className="context-filter-wrapper">
-                  <button
-                    className={`filter-toggle-btn ${isContextFilterActive ? 'active' : ''}`}
-                    onClick={() => setContextFilterActive(!isContextFilterActive)}
-                    title={isContextFilterActive ? "Show all messages" : "Show only current question messages"}
-                  >
-                    <Brain size={14} />
-                    {isContextFilterActive ? "Grouped by Q" : "Group Chat"}
-                  </button>
-                </div>
-              )}
+              {!splitModeImages && ribbonSessionImages.length > 0 && (() => {
+                const activeGroup = activeQuestionId
+                  ? groupedQuestions.find(g => String(g.questionNumber) === String(activeQuestionId))
+                  : null;
+                const rawTargetIdx = activeGroup
+                  ? (activeGroup.allImageIndices?.[0] ?? 0)
+                  : 0;
+                const targetIdx = Math.max(0, Math.min(rawTargetIdx, ribbonSessionImages.length - 1));
+                const startIdx = ribbonSessionImages.length <= 3
+                  ? 0
+                  : Math.min(Math.max(0, targetIdx - 1), ribbonSessionImages.length - 3);
+                const previewImages = ribbonSessionImages.slice(startIdx, startIdx + 3);
+                const extraCount = ribbonSessionImages.length - previewImages.length;
+
+                return (
+                  <div className="ribbon-thumbnail-stack-wrapper">
+                    <button
+                      type="button"
+                      className="ribbon-thumbnail-stack-btn"
+                      onClick={() => enterSplitModeEnriched(ribbonSessionImages, targetIdx, true)}
+                      title={`View marked page ${targetIdx + 1} of ${ribbonSessionImages.length}`}
+                      aria-label={`View marked results (${ribbonSessionImages.length} pages)`}
+                    >
+                      <div className="ribbon-thumbnail-stack">
+                        {previewImages.map((img, idx) => (
+                          <img
+                            key={img.messageId ? `${img.messageId}-${idx}` : idx}
+                            src={img.src}
+                            alt={`Page ${startIdx + idx + 1}`}
+                            className="ribbon-thumbnail-item"
+                            style={{ zIndex: previewImages.length - idx }}
+                          />
+                        ))}
+                      </div>
+                      {extraCount > 0 && (
+                        <span className="ribbon-thumbnail-more">+{extraCount}</span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -767,6 +876,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
               isMobile={false}
               onSendFollowUpMessage={!isQuestionMode ? handleViewerSendFollowUp : undefined}
               isProcessingFollowUp={isProcessing || isAIThinking}
+              latestFollowUpResponse={activeQuestionFollowUpResponse}
+              hasExplanationForActiveQuestion={hasExplanationForActiveQuestion}
+              onFocusExistingExplanation={handleFocusExistingExplanation}
               MarkdownRenderer={MarkdownMathRenderer}
             />
           </div>
@@ -790,7 +902,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                 isMobile={isMobile}
                 onSendFollowUpMessage={!isQuestionMode ? handleViewerSendFollowUp : undefined}
                 isProcessingFollowUp={isProcessing || isAIThinking}
-                latestFollowUpResponse={latestFollowUpResponse}
+                latestFollowUpResponse={activeQuestionFollowUpResponse}
+                hasExplanationForActiveQuestion={hasExplanationForActiveQuestion}
+                onFocusExistingExplanation={handleFocusExistingExplanation}
                 MarkdownRenderer={MarkdownMathRenderer}
               />
             </div>

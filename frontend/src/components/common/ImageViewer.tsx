@@ -50,6 +50,8 @@ interface ImageViewerProps {
     onSendFollowUpMessage?: (text: string, questionNumber?: string | null) => Promise<boolean | void> | void;
     isProcessingFollowUp?: boolean;
     latestFollowUpResponse?: ViewerFollowUpResponse | null;
+    hasExplanationForActiveQuestion?: boolean;
+    onFocusExistingExplanation?: (questionNumber: string) => void;
     MarkdownRenderer?: React.ComponentType<any>;
 }
 
@@ -65,14 +67,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     onSendFollowUpMessage,
     isProcessingFollowUp = false,
     latestFollowUpResponse = null,
+    hasExplanationForActiveQuestion = false,
+    onFocusExistingExplanation,
     MarkdownRenderer
 }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(initialImageIndex);
     const [isMistakesFilterActive, setIsMistakesFilterActive] = useState(false);
     const [mobileInputText, setMobileInputText] = useState('');
-    const [isSheetDismissed, setIsSheetDismissed] = useState(false);
     const [isSheetCollapsed, setIsSheetCollapsed] = useState(false);
-    const [hasRequestedInViewerFollowUp, setHasRequestedInViewerFollowUp] = useState(false);
     const imageRef = useRef<HTMLImageElement>(null);
     const lastSeenResponseIdRef = useRef<string | null>(latestFollowUpResponse?.id || null);
 
@@ -87,9 +89,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     useEffect(() => {
         if (latestFollowUpResponse?.id && latestFollowUpResponse.id !== lastSeenResponseIdRef.current) {
             lastSeenResponseIdRef.current = latestFollowUpResponse.id;
-            setIsSheetDismissed(false);
             setIsSheetCollapsed(false);
-            setHasRequestedInViewerFollowUp(true);
         }
     }, [latestFollowUpResponse?.id]);
 
@@ -98,10 +98,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     const lastPropIndexRef = useRef(initialImageIndex);
     useEffect(() => {
         if (initialImageIndex !== lastPropIndexRef.current) {
-            setCurrentImageIndex(initialImageIndex);
             lastPropIndexRef.current = initialImageIndex;
-            setIsSheetCollapsed(true);
-            engagementTracker.recordPageView(initialImageIndex);
+            setCurrentImageIndex(prev => {
+                if (prev !== initialImageIndex) {
+                    setIsSheetCollapsed(true);
+                    engagementTracker.recordPageView(initialImageIndex);
+                }
+                return initialImageIndex;
+            });
         }
     }, [initialImageIndex]);
 
@@ -164,44 +168,49 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         }
     }, [onImageChange]);
 
+    const isMistakeView = isMistakesFilterActive && lostMarkPageIndices.length > 0;
+    const currentMistakePosition = useMemo(() => {
+        if (!isMistakeView) return -1;
+        const exactIdx = lostMarkPageIndices.indexOf(currentImageIndex);
+        if (exactIdx !== -1) return exactIdx + 1;
+        const priorCount = lostMarkPageIndices.filter(idx => idx <= currentImageIndex).length;
+        return Math.max(1, priorCount);
+    }, [isMistakeView, lostMarkPageIndices, currentImageIndex]);
+
+    const canGoPrevious = isMistakeView
+        ? currentImageIndex > lostMarkPageIndices[0]
+        : currentImageIndex > 0;
+    const canGoNext = isMistakeView
+        ? currentImageIndex < lostMarkPageIndices[lostMarkPageIndices.length - 1]
+        : currentImageIndex < images.length - 1;
+
     const navigateToPrevious = useCallback(() => {
-        if (isMistakesFilterActive && lostMarkPageIndices.length > 0) {
-            const currentPos = lostMarkPageIndices.indexOf(currentImageIndex);
-            if (currentPos !== -1) {
-                const prevPos = currentPos === 0 ? lostMarkPageIndices.length - 1 : currentPos - 1;
-                performNavigation(lostMarkPageIndices[prevPos]);
-            } else {
-                const prevCandidates = lostMarkPageIndices.filter(idx => idx < currentImageIndex);
-                const targetIdx = prevCandidates.length > 0
-                    ? prevCandidates[prevCandidates.length - 1]
-                    : lostMarkPageIndices[lostMarkPageIndices.length - 1];
-                performNavigation(targetIdx);
+        if (!canGoPrevious) return;
+        if (isMistakeView) {
+            const prevCandidates = lostMarkPageIndices.filter(idx => idx < currentImageIndex);
+            if (prevCandidates.length > 0) {
+                performNavigation(prevCandidates[prevCandidates.length - 1]);
             }
             return;
         }
         if (images.length > 1) {
-            const newIndex = currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1;
-            performNavigation(newIndex);
+            performNavigation(currentImageIndex - 1);
         }
-    }, [isMistakesFilterActive, lostMarkPageIndices, images.length, currentImageIndex, performNavigation]);
+    }, [canGoPrevious, isMistakeView, lostMarkPageIndices, images.length, currentImageIndex, performNavigation]);
 
     const navigateToNext = useCallback(() => {
-        if (isMistakesFilterActive && lostMarkPageIndices.length > 0) {
-            const currentPos = lostMarkPageIndices.indexOf(currentImageIndex);
-            if (currentPos !== -1) {
-                const nextPos = currentPos === lostMarkPageIndices.length - 1 ? 0 : currentPos + 1;
-                performNavigation(lostMarkPageIndices[nextPos]);
-            } else {
-                const nextIdx = lostMarkPageIndices.find(idx => idx > currentImageIndex) ?? lostMarkPageIndices[0];
+        if (!canGoNext) return;
+        if (isMistakeView) {
+            const nextIdx = lostMarkPageIndices.find(idx => idx > currentImageIndex);
+            if (nextIdx !== undefined) {
                 performNavigation(nextIdx);
             }
             return;
         }
         if (images.length > 1) {
-            const newIndex = currentImageIndex === images.length - 1 ? 0 : currentImageIndex + 1;
-            performNavigation(newIndex);
+            performNavigation(currentImageIndex + 1);
         }
-    }, [isMistakesFilterActive, lostMarkPageIndices, images.length, currentImageIndex, performNavigation]);
+    }, [canGoNext, isMistakeView, lostMarkPageIndices, images.length, currentImageIndex, performNavigation]);
 
     const handleToggleMistakesFilter = useCallback(() => {
         if (!lostMarkPageIndices || lostMarkPageIndices.length === 0) return;
@@ -215,30 +224,42 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         });
     }, [lostMarkPageIndices, currentImageIndex, performNavigation]);
 
-    const handleNextMistake = useCallback(() => {
-        if (!lostMarkPageIndices || lostMarkPageIndices.length === 0) return;
-        const nextIdx = lostMarkPageIndices.find(idx => idx > currentImageIndex) ?? lostMarkPageIndices[0];
-        performNavigation(nextIdx);
-    }, [lostMarkPageIndices, currentImageIndex, performNavigation]);
-
     const handleExplainActiveQuestion = useCallback(async () => {
-        if (!onSendFollowUpMessage || isProcessingFollowUp) return;
+        if (isProcessingFollowUp) return;
         const qNum = activeQuestionMeta?.questionNumber;
+
+        // If an explanation already exists for this question, toggle/focus it instead of firing a duplicate LLM call
+        if (hasExplanationForActiveQuestion && qNum) {
+            if (isMobile) {
+                setIsSheetCollapsed(prev => !prev);
+            } else if (onFocusExistingExplanation) {
+                onFocusExistingExplanation(qNum);
+            }
+            return;
+        }
+
+        if (!onSendFollowUpMessage) return;
         const promptText = qNum
             ? (activeQuestionMeta?.awardedMarks !== null &&
                activeQuestionMeta?.totalMarks &&
                activeQuestionMeta.awardedMarks < activeQuestionMeta.totalMarks
-                ? `Explain Question ${qNum} step-by-step and show how to get full marks (${activeQuestionMeta.totalMarks}/${activeQuestionMeta.totalMarks}).`
+                ? `Explain Question ${qNum}: first point out specifically where my working went wrong, then show step-by-step how to get full marks (${activeQuestionMeta.totalMarks}/${activeQuestionMeta.totalMarks}).`
                 : `Explain Question ${qNum} step-by-step.`)
             : `Explain the marking on page ${currentImageIndex + 1} step-by-step.`;
 
         if (isMobile) {
-            setHasRequestedInViewerFollowUp(true);
-            setIsSheetDismissed(false);
             setIsSheetCollapsed(false);
         }
         await onSendFollowUpMessage(promptText, qNum || null);
-    }, [onSendFollowUpMessage, isProcessingFollowUp, activeQuestionMeta, currentImageIndex, isMobile]);
+    }, [
+        onSendFollowUpMessage,
+        isProcessingFollowUp,
+        activeQuestionMeta,
+        currentImageIndex,
+        isMobile,
+        hasExplanationForActiveQuestion,
+        onFocusExistingExplanation
+    ]);
 
     const handleMobileChatSubmit = useCallback(async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -247,8 +268,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
         const qNum = activeQuestionMeta?.questionNumber || null;
         setMobileInputText('');
-        setHasRequestedInViewerFollowUp(true);
-        setIsSheetDismissed(false);
         setIsSheetCollapsed(false);
         await onSendFollowUpMessage(trimmed, qNum);
     }, [mobileInputText, onSendFollowUpMessage, isProcessingFollowUp, activeQuestionMeta]);
@@ -376,10 +395,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         thumbnailRefs.current = thumbnailRefs.current.slice(0, images.length);
     }, [images]);
 
-    if (!currentImage) {
-        return null;
-    }
-
     const activeBadgeColorClass = useMemo(() => {
         if (!activeQuestionMeta || activeQuestionMeta.awardedMarks === null || activeQuestionMeta.totalMarks <= 0) {
             return 'neutral';
@@ -389,11 +404,20 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         return 'yellow';
     }, [activeQuestionMeta]);
 
+    if (!currentImage) {
+        return null;
+    }
+
+    const responseMatchesActiveQuestion = Boolean(
+        !latestFollowUpResponse?.questionNumber ||
+        !activeQuestionMeta?.questionNumber ||
+        String(latestFollowUpResponse.questionNumber).toLowerCase() === String(activeQuestionMeta.questionNumber).toLowerCase()
+    );
+
     const showMobileResponseSheet = Boolean(
         isMobile &&
         onSendFollowUpMessage &&
-        !isSheetDismissed &&
-        (isProcessingFollowUp || (latestFollowUpResponse && (hasRequestedInViewerFollowUp || latestFollowUpResponse.content)))
+        (isProcessingFollowUp || Boolean(latestFollowUpResponse && responseMatchesActiveQuestion && latestFollowUpResponse.content))
     );
 
     return (
@@ -402,28 +426,32 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                 <div className="image-mode-controls">
                     {images.length > 1 && (
                         <>
-                            <div className="page-stepper-controls" role="group" aria-label="Page navigation">
+                            <div className={`page-stepper-controls ${isMistakeView ? 'mistake-mode' : ''}`} role="group" aria-label="Page navigation">
                                 <button
                                     type="button"
                                     className="page-step-btn"
                                     onClick={navigateToPrevious}
-                                    aria-label="Previous page"
-                                    title="Previous page (↑)"
+                                    disabled={!canGoPrevious}
+                                    aria-label={isMistakeView ? 'Previous mistake page' : 'Previous page'}
+                                    title={isMistakeView ? 'Previous mistake page (↑)' : 'Previous page (↑)'}
                                 >
-                                    <ArrowUp size={16} />
+                                    <ArrowUp size={15} />
                                 </button>
+                                <span className="page-step-counter">
+                                    {isMistakeView
+                                        ? `Mistake ${currentMistakePosition} / ${lostMarkPageIndices.length}`
+                                        : `${currentImageIndex + 1} / ${images.length}`}
+                                </span>
                                 <button
                                     type="button"
                                     className="page-step-btn"
                                     onClick={navigateToNext}
-                                    aria-label="Next page"
-                                    title="Next page (↓)"
+                                    disabled={!canGoNext}
+                                    aria-label={isMistakeView ? 'Next mistake page' : 'Next page'}
+                                    title={isMistakeView ? 'Next mistake page (↓)' : 'Next page (↓)'}
                                 >
-                                    <ArrowDown size={16} />
+                                    <ArrowDown size={15} />
                                 </button>
-                                <span className="page-step-counter">
-                                    {currentImageIndex + 1} / {images.length}
-                                </span>
                             </div>
                             <div className="control-separator" />
                         </>
@@ -440,14 +468,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                                 <AlertCircle size={14} />
                                 <span>Mistakes ({lostMarkPageIndices.length})</span>
                             </button>
-                            <button
-                                type="button"
-                                className="next-mistake-btn"
-                                onClick={handleNextMistake}
-                                title="Jump to next mistake page"
-                            >
-                                <span>Next Mistake</span>
-                            </button>
                             <div className="control-separator" />
                         </>
                     )}
@@ -455,13 +475,21 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                         <>
                             <button
                                 type="button"
-                                className="viewer-explain-btn"
+                                className={`viewer-explain-btn ${hasExplanationForActiveQuestion ? 'has-explanation' : ''}`}
                                 onClick={handleExplainActiveQuestion}
                                 disabled={isProcessingFollowUp}
-                                title={`Ask AI to explain Question ${activeQuestionMeta.questionNumber} in the chat panel`}
+                                title={
+                                    hasExplanationForActiveQuestion
+                                        ? `Scroll to existing Question ${activeQuestionMeta.questionNumber} explanation in chat`
+                                        : `Ask AI to explain Question ${activeQuestionMeta.questionNumber} in the chat panel`
+                                }
                             >
                                 <Sparkles size={14} />
-                                <span>Explain Q{activeQuestionMeta.questionNumber}</span>
+                                <span>
+                                    {hasExplanationForActiveQuestion
+                                        ? `View Q${activeQuestionMeta.questionNumber} Explanation`
+                                        : `Explain Q${activeQuestionMeta.questionNumber}`}
+                                </span>
                             </button>
                             <div className="control-separator" />
                         </>
@@ -474,7 +502,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                     <div className="control-separator" />
                     <button type="button" className="rotate-btn" onClick={rotate} aria-label="Rotate image"><RotateCw size={20} /></button>
                     <div className="control-separator" />
-                    <button type="button" className="download-btn" onClick={onDownload} disabled={isDownloading || isZipping} aria-label="Download image" title="Download current page"><Download size={20} /><span>{isDownloading ? 'Downloading...' : (images.length > 1 ? 'Page' : 'Download')}</span></button>
+                    <button type="button" className="download-btn" onClick={onDownload} disabled={isDownloading || isZipping} aria-label="Download image" title={isDownloading ? 'Downloading...' : 'Download current page'}><Download size={20} /></button>
                     {images.length > 1 && (
                         <>
                             <div className="control-separator" />
@@ -484,10 +512,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                                 onClick={onDownloadAll}
                                 disabled={isZipping || isDownloading}
                                 aria-label="Download all pages as ZIP archive"
-                                title="Download all pages in a .zip archive"
+                                title={isZipping ? `Zipping ${zipProgress}` : 'Download all pages in a .zip archive'}
                             >
                                 <Archive size={20} />
-                                <span>{isZipping ? `Zipping ${zipProgress}` : 'All (.zip)'}</span>
                             </button>
                         </>
                     )}
@@ -546,9 +573,24 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                     </div>
                 )}
 
-                {showMobileResponseSheet && (
-                    <div className={`viewer-mobile-response-sheet ${isSheetCollapsed ? 'collapsed' : 'expanded'}`}>
-                        <div className="viewer-mobile-sheet-header" onClick={() => setIsSheetCollapsed(prev => !prev)}>
+                {showMobileResponseSheet && !isSheetCollapsed && (
+                    <div
+                        className="viewer-mobile-response-sheet expanded"
+                        onTouchStart={e => e.stopPropagation()}
+                        onTouchMove={e => e.stopPropagation()}
+                    >
+                        <div
+                            className="viewer-mobile-sheet-header"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setIsSheetCollapsed(true)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setIsSheetCollapsed(true);
+                                }
+                            }}
+                        >
                             <div className="viewer-mobile-sheet-title">
                                 <Sparkles size={14} />
                                 <span>
@@ -557,41 +599,34 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                                         : `AI Explanation${latestFollowUpResponse?.questionNumber ? ` · Q${latestFollowUpResponse.questionNumber}` : ''}`}
                                 </span>
                             </div>
-                            <div className="viewer-mobile-sheet-actions" onClick={e => e.stopPropagation()}>
+                            <div className="viewer-mobile-sheet-actions">
                                 <button
                                     type="button"
                                     className="viewer-sheet-icon-btn"
-                                    onClick={() => setIsSheetCollapsed(prev => !prev)}
-                                    aria-label={isSheetCollapsed ? 'Expand AI response' : 'Collapse AI response'}
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        setIsSheetCollapsed(true);
+                                    }}
+                                    aria-label="Collapse AI response"
                                 >
-                                    {isSheetCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                </button>
-                                <button
-                                    type="button"
-                                    className="viewer-sheet-icon-btn"
-                                    onClick={() => setIsSheetDismissed(true)}
-                                    aria-label="Dismiss AI response"
-                                >
-                                    <X size={16} />
+                                    <ChevronDown size={16} />
                                 </button>
                             </div>
                         </div>
-                        {!isSheetCollapsed && (
-                            <div className="viewer-mobile-sheet-body">
-                                {isProcessingFollowUp ? (
-                                    <div className="viewer-mobile-sheet-loading">
-                                        <div className="loading-spinner small" />
-                                        <span>Generating step-by-step explanation...</span>
-                                    </div>
-                                ) : latestFollowUpResponse ? (
-                                    MarkdownRenderer ? (
-                                        <MarkdownRenderer content={latestFollowUpResponse.content} />
-                                    ) : (
-                                        <div className="viewer-mobile-sheet-plain">{latestFollowUpResponse.content}</div>
-                                    )
-                                ) : null}
-                            </div>
-                        )}
+                        <div className="viewer-mobile-sheet-body">
+                            {isProcessingFollowUp ? (
+                                <div className="viewer-mobile-sheet-loading">
+                                    <div className="loading-spinner small" />
+                                    <span>Generating step-by-step explanation...</span>
+                                </div>
+                            ) : latestFollowUpResponse ? (
+                                MarkdownRenderer ? (
+                                    <MarkdownRenderer content={latestFollowUpResponse.content} />
+                                ) : (
+                                    <div className="viewer-mobile-sheet-plain">{latestFollowUpResponse.content}</div>
+                                )
+                            ) : null}
+                        </div>
                     </div>
                 )}
             </div>
@@ -609,14 +644,27 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                         )}
                         <button
                             type="button"
-                            className="viewer-mobile-explain-chip"
-                            onClick={handleExplainActiveQuestion}
-                            disabled={isProcessingFollowUp}
+                            className={`viewer-mobile-explain-chip ${showMobileResponseSheet ? 'has-explanation' : ''}`}
+                            onClick={() => {
+                                if (showMobileResponseSheet) {
+                                    setIsSheetCollapsed(prev => !prev);
+                                } else {
+                                    handleExplainActiveQuestion();
+                                }
+                            }}
+                            disabled={isProcessingFollowUp && !isSheetCollapsed}
                         >
                             <Sparkles size={12} />
                             <span>
-                                {activeQuestionMeta ? `Explain Q${activeQuestionMeta.questionNumber}` : 'Explain Page'}
+                                {isProcessingFollowUp
+                                    ? `Thinking${activeQuestionMeta ? ` · Q${activeQuestionMeta.questionNumber}` : '...'}`
+                                    : showMobileResponseSheet
+                                        ? `AI Explanation${activeQuestionMeta ? ` · Q${activeQuestionMeta.questionNumber}` : ''}`
+                                        : (activeQuestionMeta ? `Explain Q${activeQuestionMeta.questionNumber}` : 'Explain Page')}
                             </span>
+                            {showMobileResponseSheet && (
+                                isSheetCollapsed ? <ChevronUp size={13} /> : <ChevronDown size={13} />
+                            )}
                         </button>
                     </div>
                     <div className="viewer-mobile-chat-input-row">
