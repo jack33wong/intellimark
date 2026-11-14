@@ -548,11 +548,11 @@ export const PerformanceSummaryPanel: React.FC<PerformanceSummaryPanelProps> = (
           <div className="tmua-hero-box">
             <div className="tmua-hero-top">
               <div className="tmua-hero-score-group">
-                <span className="tmua-hero-pct">{score.percentage}%</span>
                 <span className="tmua-hero-Raw">
                   <span className="score-raw-desktop">{score.awardedMarks} / {score.totalMarks} marks</span>
                   <span className="score-raw-mobile">{score.awardedMarks}/{score.totalMarks}</span>
                 </span>
+                <span className="tmua-hero-pct">{score.percentage}%</span>
               </div>
               <div className="tmua-hero-badges">
                 {isPastPaperWithBoundaries && (

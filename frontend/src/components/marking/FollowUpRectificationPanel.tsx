@@ -357,12 +357,13 @@ export const FollowUpRectificationPanel: React.FC<FollowUpRectificationPanelProp
               cursor: isProcessing ? 'not-allowed' : 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '10px',
               fontSize: '12.5px',
-              fontWeight: 500
+              fontWeight: 500,
+              textAlign: 'left'
             }}
           >
-            <Link2 size={13} />
+            <Link2 size={13} style={{ flexShrink: 0 }} />
             <span>Wrong paper or question detected? Amend Official Paper</span>
           </button>
         </div>

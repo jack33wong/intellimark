@@ -341,16 +341,7 @@ const SessionHeader: React.FC = () => {
             </>
           )}
 
-          {/* Score and Grade badges inline with title */}
-          {studentScore && studentScore.scoreText && (
-            <>
-              <span className="title-separator"> • </span>
-              <span className="title-badge score-badge">
-                <span className="badge-label">Score:</span>
-                <span className="badge-value">{studentScore.scoreText}</span>
-              </span>
-            </>
-          )}
+          {/* Grade badge inline with title */}
           {gradeValue && (
             <>
               <span className="title-separator"> • </span>
@@ -373,19 +364,10 @@ const SessionHeader: React.FC = () => {
       );
     }
     
-    // Fallback if no detected question but we still want to show score if available
+    // Fallback if no detected question
     return (
       <>
         <span className="title-main">{sessionTitle}</span>
-        {studentScore && studentScore.scoreText && (
-          <>
-            <span className="title-separator"> • </span>
-            <span className="title-badge score-badge">
-              <span className="badge-label">Score:</span>
-              <span className="badge-value">{studentScore.scoreText}</span>
-            </span>
-          </>
-        )}
       </>
     );
   };
