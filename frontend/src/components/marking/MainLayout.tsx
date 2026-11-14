@@ -671,7 +671,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                 {renderQuestionRibbon(true)}
               </div>
 
-              {!splitModeImages && ribbonSessionImages.length > 0 && (() => {
+              {ribbonSessionImages.length > 0 && (() => {
                 const activeGroup = activeQuestionId
                   ? groupedQuestions.find(g => String(g.questionNumber) === String(activeQuestionId))
                   : null;
@@ -684,9 +684,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ noIndex = false }) => {
                   : Math.min(Math.max(0, targetIdx - 1), ribbonSessionImages.length - 3);
                 const previewImages = ribbonSessionImages.slice(startIdx, startIdx + 3);
                 const extraCount = ribbonSessionImages.length - previewImages.length;
+                const hasScoredQuestions = groupedQuestions.some(
+                  q => q.hasResults && q.awardedMarks !== null && q.totalMarks > 0
+                );
+                const totalAwarded = groupedQuestions.reduce(
+                  (sum, q) => sum + (q.hasResults && q.awardedMarks !== null ? q.awardedMarks : 0),
+                  0
+                );
+                const totalMax = groupedQuestions.reduce(
+                  (sum, q) => sum + (q.totalMarks || 0),
+                  0
+                );
 
                 return (
                   <div className="ribbon-thumbnail-stack-wrapper">
+                    {hasScoredQuestions && totalMax > 0 && (
+                      <span className="ribbon-thumbnail-total-score">
+                        <span className="ribbon-thumbnail-total-label">Total:</span>
+                        <span className="ribbon-thumbnail-total-value">{totalAwarded}/{totalMax}</span>
+                      </span>
+                    )}
                     <button
                       type="button"
                       className="ribbon-thumbnail-stack-btn"

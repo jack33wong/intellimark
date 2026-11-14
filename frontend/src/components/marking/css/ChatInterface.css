@@ -1332,7 +1332,7 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 
 .marking-header-ribbon-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 0 20px;
   width: 100%;
@@ -1382,7 +1382,9 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 /* Compact Overlapping Marked-Page Thumbnail Stack in Ribbon Row */
 .ribbon-thumbnail-stack-wrapper {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   flex-shrink: 0;
   padding-left: 8px;
   border-left: 1px solid var(--border-main);
@@ -1393,9 +1395,9 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px 2px 4px;
-  border-radius: 8px;
-  border: 1px solid var(--border-main);
+  padding: 6px 6px 6px 6px;
+  border-radius: 15px;
+  border: 2px solid var(--border-main);
   background: var(--fill-tsp-gray-main, rgba(0, 0, 0, 0.04));
   cursor: pointer;
   transition: transform 0.15s ease, background-color 0.15s ease;
@@ -1415,8 +1417,8 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
 }
 
 .ribbon-thumbnail-item {
-  width: 32px;
-  height: 40px;
+  width: 24px;
+  height: 30px;
   object-fit: cover;
   border-radius: 4px;
   border: 1.5px solid var(--background-gray-main);
@@ -1435,6 +1437,36 @@ html.dark .follow-up-chat-input-container.follow-up-bottom::before {
   color: var(--text-secondary);
   line-height: 1;
   white-space: nowrap;
+}
+
+.ribbon-thumbnail-total-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--function-error);
+  line-height: 1;
+  white-space: nowrap;
+  padding-left: 4px;
+  opacity: 0.8;
+}
+
+.ribbon-thumbnail-total-label {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.ribbon-thumbnail-total-value {
+  color: var(--function-error);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* Specific blur transition at the bottom edge of the header */
