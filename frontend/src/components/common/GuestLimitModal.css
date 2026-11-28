@@ -152,17 +152,106 @@
     background: transparent;
     border: 1px solid var(--border-main);
     color: var(--text-secondary);
-    padding: 12px;
+    padding: 11px 16px;
     border-radius: 12px;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     transition: all 0.2s ease;
 }
 
 .guest-limit-secondary-btn:hover {
     background: var(--background-menu-gray);
     color: var(--text-primary);
+}
+
+.guest-limit-google-btn {
+    width: 100%;
+    background: #ffffff;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+    padding: 13px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.guest-limit-google-btn:hover:not(:disabled) {
+    background: #f9fafb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.guest-limit-google-btn:disabled,
+.guest-limit-secondary-btn:disabled,
+.guest-limit-text-link:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.guest-limit-google-icon {
+    flex-shrink: 0;
+}
+
+.guest-limit-spinner {
+    animation: guestLimitSpin 0.8s linear infinite;
+}
+
+@keyframes guestLimitSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.guest-limit-trust-note {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: -4px 0 4px;
+    line-height: 1.4;
+}
+
+.guest-limit-text-link {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 8px;
+    transition: color 0.2s ease;
+}
+
+.guest-limit-text-link:hover:not(:disabled) {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.guest-limit-auth-error {
+    width: 100%;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 16px;
+    text-align: left;
 }
 
 @keyframes fadeIn {

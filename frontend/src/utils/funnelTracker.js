@@ -165,6 +165,10 @@ export const markAuthWallDismissed = (dismissMethod = 'close_button', step = 'in
   }, null);
 };
 
+/**
+ * @param {string} [method]
+ * @param {string | null} [userId]
+ */
 export const markAuthWallConverted = (method = 'email', userId = null) => {
   const state = readAuthWallState();
   if (!state || state.trigger !== 'marking_submit' || state.outcomeFired) {

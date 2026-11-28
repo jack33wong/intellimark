@@ -2462,6 +2462,35 @@ export const MarkingPageProvider = ({
     };
 
     if (user?.uid) {
+      // 1. If user just completed 1-click Google sign-in directly inside GuestLimitModal,
+      // their pending upload is still in memory — resume it immediately without IndexedDB round-trip.
+      if (pendingUploadRef.current) {
+        const inMemoryPending = pendingUploadRef.current;
+        pendingUploadRef.current = null;
+        setShowGuestLimitModal(false);
+
+        trackFunnelEvent('post_login_stash_check', {
+          hasStashedData: true,
+          stashType: `in_memory_${inMemoryPending.type || 'unknown'}`,
+          fileCount: inMemoryPending.files?.length || (inMemoryPending.file ? 1 : 0),
+          paper: inMemoryPending.paper || null,
+          navType: 'in_place_google_auth'
+        }, user.uid);
+
+        setTimeout(() => {
+          if (inMemoryPending.type === 'multi' && Array.isArray(inMemoryPending.files) && inMemoryPending.files.length > 0) {
+            resumeHandlersRef.current.handleMultiImageAnalysis(inMemoryPending.files, inMemoryPending.customText, inMemoryPending.extraParams);
+          } else if (inMemoryPending.type === 'single' && inMemoryPending.file) {
+            resumeHandlersRef.current.handleImageAnalysis(inMemoryPending.file, inMemoryPending.customText);
+          } else if (inMemoryPending.type === 'model_answer' && inMemoryPending.paper) {
+            resumeHandlersRef.current.onGenerateModelAnswer(inMemoryPending.paper);
+          } else if (inMemoryPending.type === 'marking_scheme' && inMemoryPending.paper) {
+            resumeHandlersRef.current.onExplainMarkingScheme(inMemoryPending.paper);
+          }
+        }, 300);
+        return;
+      }
+
       retrieveAndClearStash().then((stashedData) => {
         trackFunnelEvent('post_login_stash_check', {
           hasStashedData: Boolean(stashedData),
@@ -2546,6 +2575,10 @@ export const MarkingPageProvider = ({
             clearSession();
             dispatch({ type: 'SET_PAGE_MODE', payload: 'upload' });
           }
+        }}
+        onDirectAuthSuccess={() => {
+          // Keep pendingUploadRef.current intact so the post-login useEffect auto-resumes it immediately
+          setShowGuestLimitModal(false);
         }}
         onSignup={async (authMode = 'signup') => {
           const resolvedMode = authMode === 'login' ? 'login' : 'signup';
