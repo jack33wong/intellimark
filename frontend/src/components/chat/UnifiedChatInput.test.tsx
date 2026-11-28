@@ -566,4 +566,46 @@ describe('UnifiedChatInput — Multi-File Finder Paste, Local Path Interception 
       'test-user'
     );
   });
+
+  test('disables Send button when pre-inspect flags file as invalid, but allows explicit "mark anyway" override', async () => {
+    const { preInspectUploadedFiles } = require('../../services/preInspectService');
+    preInspectUploadedFiles.mockResolvedValueOnce({
+      preInspectToken: 'tok-invalid',
+      preInspectSessionId: 'pi-invalid-1',
+      overallStatus: 'invalid',
+      docType: 'non_academic',
+      isWarning: true,
+      bannerTitle: 'Not an academic exam or homework image',
+      suggestions: [{ id: 'replace', label: 'Replace with a homework photo', action: 'replace_file' }],
+      perFileRoles: [{ fileName: 'screenshot.jpg', role: 'non_academic', pageCount: 1, sampledPages: [0] }],
+    });
+
+    const { container, props } = renderInput();
+    const fileInput = container.querySelector('#unified-file-input') as HTMLInputElement;
+
+    const jpegBytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
+    const file = new File([jpegBytes], 'screenshot.jpg', { type: 'image/jpeg' });
+
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Not an academic exam or homework image')).toBeInTheDocument();
+    });
+
+    // Main Send button must be disabled so user doesn't accidentally hit auth wall or mark junk
+    const sendBtn = screen.getByTestId('send-button');
+    expect(sendBtn).toBeDisabled();
+
+    // Explicit escape hatch lets user override a false-positive invalid classification
+    const overrideBtn = screen.getByRole('button', { name: /This is my homework — mark anyway/i });
+    await act(async () => {
+      fireEvent.click(overrideBtn);
+    });
+
+    await waitFor(() => {
+      expect(props.onAnalyzeImage).toHaveBeenCalledTimes(1);
+    });
+  });
 });

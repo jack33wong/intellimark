@@ -6,9 +6,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { AlertCircle, Chrome, Mail, Lock, Eye, EyeOff, X, Loader2 } from 'lucide-react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getAdditionalUserInfo } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
-import { getAdditionalUserInfo } from 'firebase/auth';
 import './Login.css';
 import '../common/LoadingSpinner.css';
 import API_CONFIG from '../../config/api';
@@ -17,7 +16,8 @@ import { fireAdsSignupConversion } from '../../utils/analytics';
 import {
   markAuthWallCtaClicked,
   markAuthWallDismissed,
-  markAuthWallConverted
+  markAuthWallConverted,
+  markAuthWallGoogleError
 } from '../../utils/funnelTracker';
 import SEO from '../common/SEO';
 
@@ -111,12 +111,23 @@ const Login = () => {
       // The useEffect listening for the `user` object will now handle the redirect.
     } catch (error) {
       console.error(`${provider} login error:`, error);
-      if (error.code === 'auth/popup-closed-by-user') {
-        setFirebaseError('Login was cancelled.');
-      } else if (error.code === 'auth/popup-blocked') {
-        setFirebaseError('Popup was blocked. Please allow popups.');
+      const code = error?.code || 'unknown';
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        markAuthWallGoogleError('auth_modal', code, { fallback: 'redirect' });
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr) {
+          markAuthWallGoogleError('auth_modal', redirectErr?.code || 'redirect_failed');
+          setFirebaseError('Popup was blocked. Please allow popups or continue with email.');
+        }
       } else {
-        setFirebaseError(`Failed to start ${provider} login.`);
+        markAuthWallGoogleError('auth_modal', code);
+        if (code === 'auth/popup-closed-by-user') {
+          setFirebaseError('Login was cancelled.');
+        } else {
+          setFirebaseError(`Failed to start ${provider} login.`);
+        }
       }
     } finally {
       setLoadingMethod(null);

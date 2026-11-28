@@ -776,6 +776,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     });
   }, [metadata.papers, metadata.boards, metadata.qualifications, metadata.tiers, selectedBoard, selectedSubject, getPaperSubject, normalizePaperSearch]);
 
+  const isInvalidPreInspect = mode === 'first-time' && preInspectResult?.overallStatus === 'invalid';
+
   const canSend = useMemo(() => {
     if (isProcessing || isNegative) return false;
 
@@ -806,10 +808,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       // In follow-up chat, either text or files is sufficient
       return hasFiles || !!combinedInput.trim();
     } else {
-      // First-time standard upload: FILES ARE MANDATORY
-      return hasFiles;
+      // First-time standard upload: FILES ARE MANDATORY, and block accidental Send on pre-inspect invalid/non-academic files
+      return hasFiles && !isInvalidPreInspect;
     }
-  }, [isProcessing, isNegative, isModelAnswerMode, isMarkingSchemeMode, selectedPaper, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search, mode]);
+  }, [isProcessing, isNegative, isInvalidPreInspect, isModelAnswerMode, isMarkingSchemeMode, selectedPaper, combinedInput, imageFile, imageFiles.length, getMatchingPapers, location.search, mode]);
 
   const matchedPaper = useMemo(() => {
     if (mode !== 'first-time') return null;
@@ -1516,8 +1518,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     };
   }, [attachedFilesSignature, mode, isProcessing]);
 
-  const handleSendClick = useCallback(async (overrideText?: string) => {
-    if (!canSend || isNegative) {
+  const handleSendClick = useCallback(async (overrideText?: string, bypassInvalidGuard = false) => {
+    const canBypassInvalid =
+      bypassInvalidGuard && !isProcessing && !isNegative && Boolean(imageFile || imageFiles.length > 0);
+    if ((!canSend && !canBypassInvalid) || isNegative) {
       if (isNegative) {
         handleNegativeCreditsRedirect('send_button_blocked');
       }
@@ -2010,7 +2014,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               </div>
             </div>
           )}
-          {mode === 'first-time' && !isProcessing && attachedFilesList.length > 0 && !preInspectDismissed && (isPreInspecting || preInspectResult) && (
+          {mode === 'first-time' && !isProcessing && attachedFilesList.length > 0 && (!preInspectDismissed || isInvalidPreInspect) && (isPreInspecting || preInspectResult) && (
             <div className="pre-inspect-panel" role="status" aria-live="polite">
               {isPreInspecting ? (
                 <div className="pre-inspect-loading-row">
@@ -2020,18 +2024,20 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
               ) : preInspectResult ? (
                 <>
                   <div className="pre-inspect-header">
-                    <span className={`pre-inspect-title ${preInspectResult.isWarning ? 'pre-inspect-title--warning' : ''}`}>
+                    <span className={`pre-inspect-title ${preInspectResult.isWarning || isInvalidPreInspect ? 'pre-inspect-title--warning' : ''}`}>
                       {preInspectResult.bannerTitle}
                     </span>
-                    <button
-                      type="button"
-                      className="pre-inspect-dismiss"
-                      onClick={() => setPreInspectDismissed(true)}
-                      title="Dismiss"
-                      aria-label="Dismiss"
-                    >
-                      <X size={14} />
-                    </button>
+                    {!isInvalidPreInspect && (
+                      <button
+                        type="button"
+                        className="pre-inspect-dismiss"
+                        onClick={() => setPreInspectDismissed(true)}
+                        title="Dismiss"
+                        aria-label="Dismiss"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
                   {preInspectResult.suggestions && preInspectResult.suggestions.length > 0 && (
                     <div className="pre-inspect-list">
@@ -2046,6 +2052,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                           <span>{suggestion.label}</span>
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {isInvalidPreInspect && (
+                    <div className="pre-inspect-invalid-override">
+                      <button
+                        type="button"
+                        className="pre-inspect-override-link"
+                        onClick={() => handleSendClick(undefined, true)}
+                      >
+                        This is my homework — mark anyway
+                      </button>
                     </div>
                   )}
                 </>
@@ -2650,10 +2667,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {/* 👇 FIX 2: Added the required `onError` prop. */}
                   {/* 👇 SendButton disabled logic updated to check combinedInput */}
                   <SendButton
-                    onClick={handleSendClick}
+                    onClick={() => handleSendClick()}
                     disabled={!canSend || isNegative}
                     loading={isProcessing}
-                    variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'}
+                    variant={(imageFile || imageFiles.length > 0) && !isInvalidPreInspect ? 'success' : 'primary'}
                     size={mode === 'first-time' ? 'main' : 'small'}
                     onError={handleError}
                   />

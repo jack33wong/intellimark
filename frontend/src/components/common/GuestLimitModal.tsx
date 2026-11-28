@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, Sparkles, ArrowRight, X, Loader2 } from 'lucide-react';
-import { signInWithPopup, getAdditionalUserInfo } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getAdditionalUserInfo } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
 import { fireAdsSignupConversion } from '../../utils/analytics';
 import { analyticsService } from '../../services/AnalyticsService';
@@ -10,6 +10,7 @@ import {
     markAuthWallCtaClicked,
     markAuthWallDismissed,
     markAuthWallConverted,
+    markAuthWallGoogleError,
     getLatestPreInspectSessionId
 } from '../../utils/funnelTracker';
 import './GuestLimitModal.css';
@@ -29,6 +30,7 @@ interface GuestLimitModalProps {
     preInspectSessionId?: string | null;
     onSignup?: (mode?: 'signup' | 'login') => Promise<void> | void;
     onDirectAuthSuccess?: () => void;
+    onPrepareRedirectStash?: () => Promise<void> | void;
 }
 
 function getModalContent(requestType: string | undefined, hasPendingUpload: boolean, effectiveLimit: number) {
@@ -113,7 +115,8 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({
     fileCount = 0,
     preInspectSessionId = null,
     onSignup,
-    onDirectAuthSuccess
+    onDirectAuthSuccess,
+    onPrepareRedirectStash
 }) => {
     const navigate = useNavigate();
     const outcomeFiredRef = useRef(false);
@@ -203,13 +206,37 @@ const GuestLimitModal: React.FC<GuestLimitModalProps> = ({
                 onClose();
             }
         } catch (error: any) {
-            const code = error?.code || '';
-            if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-                setAuthError('Google sign-in was cancelled. Try again or continue with email.');
-            } else if (code === 'auth/popup-blocked') {
-                setAuthError('Popup was blocked by your browser. Please allow popups or continue with email.');
+            const code = error?.code || 'unknown';
+            const resolvedPreInspectId = preInspectSessionId || getLatestPreInspectSessionId() || null;
+
+            // On iOS Chrome (CriOS) or browsers that block popups, fall back to same-site redirect auth
+            if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+                markAuthWallGoogleError('interstitial', code, {
+                    fallback: 'redirect',
+                    preInspectSessionId: resolvedPreInspectId
+                });
+                try {
+                    outcomeFiredRef.current = true;
+                    if (onPrepareRedirectStash) {
+                        await onPrepareRedirectStash();
+                    }
+                    await signInWithRedirect(auth, googleProvider);
+                    return;
+                } catch (redirectErr: any) {
+                    markAuthWallGoogleError('interstitial', redirectErr?.code || 'redirect_failed', {
+                        preInspectSessionId: resolvedPreInspectId
+                    });
+                    setAuthError('Popup was blocked by your browser. Please continue with email.');
+                }
             } else {
-                setAuthError('Could not complete Google sign-in. Please try again or continue with email.');
+                markAuthWallGoogleError('interstitial', code, {
+                    preInspectSessionId: resolvedPreInspectId
+                });
+                if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+                    setAuthError('Google sign-in was cancelled. Try again or continue with email.');
+                } else {
+                    setAuthError('Could not complete Google sign-in. Please try again or continue with email.');
+                }
             }
         } finally {
             setIsGoogleLoading(false);

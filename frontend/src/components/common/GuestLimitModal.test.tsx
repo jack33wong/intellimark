@@ -9,6 +9,7 @@ jest.mock('react-router-dom', () => ({
 
 jest.mock('firebase/auth', () => ({
   signInWithPopup: jest.fn(),
+  signInWithRedirect: jest.fn(),
   getAdditionalUserInfo: jest.fn(() => ({ isNewUser: true })),
 }));
 
@@ -32,6 +33,7 @@ jest.mock('../../utils/funnelTracker', () => ({
   markAuthWallCtaClicked: jest.fn(),
   markAuthWallDismissed: jest.fn(),
   markAuthWallConverted: jest.fn(),
+  markAuthWallGoogleError: jest.fn(),
   getLatestPreInspectSessionId: jest.fn(() => 'pi-session-1'),
 }));
 
@@ -123,6 +125,37 @@ describe('GuestLimitModal — 1-Click Google Auth', () => {
     });
     expect(onClose).not.toHaveBeenCalled();
     expect(onDirectAuthSuccess).not.toHaveBeenCalled();
+  });
+
+  test('falls back to signInWithRedirect and stashes files when popup is blocked (e.g. iOS Chrome)', async () => {
+    const { signInWithPopup, signInWithRedirect } = require('firebase/auth');
+    const { markAuthWallGoogleError } = require('../../utils/funnelTracker');
+    signInWithPopup.mockRejectedValueOnce({ code: 'auth/popup-blocked' });
+    signInWithRedirect.mockResolvedValueOnce(undefined);
+
+    const onPrepareRedirectStash = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <GuestLimitModal
+        isOpen={true}
+        onClose={jest.fn()}
+        onPrepareRedirectStash={onPrepareRedirectStash}
+        hasPendingUpload={true}
+        fileCount={2}
+        requestType="marking"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+
+    await waitFor(() => {
+      expect(markAuthWallGoogleError).toHaveBeenCalledWith('interstitial', 'auth/popup-blocked', {
+        fallback: 'redirect',
+        preInspectSessionId: 'pi-session-1',
+      });
+      expect(onPrepareRedirectStash).toHaveBeenCalledTimes(1);
+      expect(signInWithRedirect).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('routes Continue with Email to onSignup("signup")', async () => {

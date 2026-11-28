@@ -2580,6 +2580,40 @@ export const MarkingPageProvider = ({
           // Keep pendingUploadRef.current intact so the post-login useEffect auto-resumes it immediately
           setShowGuestLimitModal(false);
         }}
+        onPrepareRedirectStash={async () => {
+          if (!pendingUploadRef.current) return;
+          try {
+            const uploadData = pendingUploadRef.current;
+            if (uploadData.type === 'single' && uploadData.file) {
+              const buffer = await uploadData.file.arrayBuffer();
+              await stashUploadData({
+                type: 'single_buffer',
+                fileName: uploadData.file.name,
+                mimeType: uploadData.file.type || (uploadData.file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                buffer,
+                customText: uploadData.customText
+              });
+            } else if (uploadData.type === 'multi' && Array.isArray(uploadData.files)) {
+              const bufferedFiles = await Promise.all(uploadData.files.map(async (f) => ({
+                name: f.name,
+                type: f.type || (f.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                buffer: await f.arrayBuffer()
+              })));
+              await stashUploadData({
+                type: 'multi_buffer',
+                files: bufferedFiles,
+                customText: uploadData.customText
+              });
+            } else if ((uploadData.type === 'model_answer' || uploadData.type === 'marking_scheme') && uploadData.paper) {
+              await stashUploadData({
+                type: uploadData.type,
+                paper: uploadData.paper
+              });
+            }
+          } catch (e) {
+            console.error("Failed to stash files before redirect:", e);
+          }
+        }}
         onSignup={async (authMode = 'signup') => {
           const resolvedMode = authMode === 'login' ? 'login' : 'signup';
           trackFunnelEvent('guest_limit_signup_clicked', {

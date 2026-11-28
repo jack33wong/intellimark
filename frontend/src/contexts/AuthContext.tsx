@@ -9,9 +9,14 @@ import {
   User,
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  getRedirectResult,
+  getAdditionalUserInfo
 } from 'firebase/auth';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
+import { fireAdsSignupConversion } from '../utils/analytics';
+import { analyticsService } from '../services/AnalyticsService';
+import { markAuthWallConverted } from '../utils/funnelTracker';
 
 interface AppUser extends User {
   isAdmin?: boolean;
@@ -51,6 +56,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
       return;
     }
+    // Handle completion of signInWithRedirect (e.g., iOS Chrome popup-blocked fallback)
+    getRedirectResult(auth)
+      .then((result) => {
+        if (!result?.user) return;
+        const additionalInfo = getAdditionalUserInfo(result);
+        if (additionalInfo?.isNewUser && result.user.email) {
+          fireAdsSignupConversion(result.user.email);
+        }
+        analyticsService.logSignUp('google');
+        markAuthWallConverted('google', result.user.uid);
+      })
+      .catch((err) => {
+        console.warn('⚠️ [AUTH] Redirect result check failed:', err?.code || err?.message);
+      });
+
     // 👇 ON_ID_TOKEN_CHANGED: Fires on login, logout, and token refresh
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {

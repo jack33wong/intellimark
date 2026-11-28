@@ -324,7 +324,8 @@ const FUNNEL_EVENTS = new Set([
   'auth_wall_shown',
   'auth_wall_cta_clicked',
   'auth_wall_dismissed',
-  'auth_wall_converted'
+  'auth_wall_converted',
+  'auth_wall_google_error'
 ]);
 
 // POST /api/config/telemetry - Lightweight client funnel & drop-off logger
@@ -337,7 +338,7 @@ router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'
     if (body?.type === 'funnel' && FUNNEL_EVENTS.has(event)) {
       const userIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
       const actor = typeof userId === 'string' && userId.trim() ? userId.trim() : `guest:${userIP}`;
-      const { trigger, step, button, isGuest, fileCount, hasMarkScheme, timeOpenMs, dismissMethod, method, preInspectSessionId } = body;
+      const { trigger, step, button, isGuest, fileCount, hasMarkScheme, timeOpenMs, dismissMethod, method, code, fallback, preInspectSessionId } = body;
       const details = [
         step ? `step=${step}` : null,
         button ? `button=${button}` : null,
@@ -347,7 +348,9 @@ router.post('/telemetry', express.json({ type: ['application/json', 'text/plain'
         typeof hasMarkScheme === 'boolean' ? `ms=${hasMarkScheme}` : null,
         typeof timeOpenMs === 'number' ? `openMs=${timeOpenMs}` : null,
         dismissMethod ? `via=${dismissMethod}` : null,
-        method ? `method=${method}` : null
+        method ? `method=${method}` : null,
+        code ? `code=${code}` : null,
+        fallback ? `fallback=${fallback}` : null
       ].filter(Boolean).join(' | ');
 
       const funnelLine = `📊 [FUNNEL] ${event} | ${actor} | ${details}`;

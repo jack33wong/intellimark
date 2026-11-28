@@ -185,3 +185,22 @@ export const markAuthWallConverted = (method = 'email', userId = null) => {
     preInspectSessionId: state.preInspectSessionId || null
   }, userId);
 };
+
+/**
+ * @param {string} step
+ * @param {string} code
+ * @param {{ fallback?: string | null, preInspectSessionId?: string | null }} [options]
+ */
+export const markAuthWallGoogleError = (step = 'interstitial', code = 'unknown', options = {}) => {
+  const state = readAuthWallState();
+  const resolvedPreInspectSessionId =
+    options?.preInspectSessionId || state?.preInspectSessionId || getLatestPreInspectSessionId() || null;
+
+  trackFunnelEvent('auth_wall_google_error', {
+    type: 'funnel',
+    step,
+    code: code || 'unknown',
+    ...(options?.fallback ? { fallback: options.fallback } : {}),
+    preInspectSessionId: resolvedPreInspectSessionId
+  }, null);
+};
