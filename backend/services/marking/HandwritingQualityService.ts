@@ -129,7 +129,50 @@ function textSimilarity(aRaw: string, bRaw: string): number {
 function isSkippableWorkText(text: string): boolean {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return true;
-  if (/^\[(DRAWING|shaded\b|BLANK|DIAGRAM|crossed\s*out)/i.test(t)) return true;
+  // Skip non-handwritten visual/MCQ selections (e.g. "[circled] C. 3.0 x 10^6 cm/s", "[DRAWING]", "[scribbled over]")
+  if (/^\[(DRAWING|shaded\b|BLANK|DIAGRAM|crossed\s*out|circled\b|ticked\b|underlined\b|selected\b|scribbled\b)/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Normalizes away harmless formatting/spacing differences (e.g. "X - rays" vs "x-rays",
+ * "3.0 × 10^5" vs "3.0 x 10^5") to prevent false-positive handwriting mismatches.
+ */
+function compactSemanticCore(s: string): string {
+  return normalizeText(s)
+    .replace(/\s*([-+=×x*/])\s*/g, '$1')
+    .replace(/\s+/g, '');
+}
+
+/**
+ * Returns true when a difference between Mathpix OCR and Classification text is NOT a
+ * handwriting legibility problem (e.g., printed/typed block, punctuation/spacing difference
+ * like "X - rays" vs "x-rays", or an OCR block split where the number matched cleanly and
+ * the trailing unit sat in an adjacent block like "340" vs "340 /s").
+ */
+function isNonHandwritingDifference(ocrRaw: string, clsRaw: string, isPrinted?: boolean): boolean {
+  if (isPrinted === true) return true;
+
+  const coreOcr = compactSemanticCore(ocrRaw);
+  const coreCls = compactSemanticCore(clsRaw);
+  if (!coreOcr || !coreCls || coreOcr === coreCls) return true;
+
+  // Pure hyphen/punctuation/whitespace difference (e.g. "X - rays" vs "x-rays")
+  const alphaOcr = coreOcr.replace(/[^a-z0-9]/g, '');
+  const alphaCls = coreCls.replace(/[^a-z0-9]/g, '');
+  if (alphaOcr.length >= 2 && alphaOcr === alphaCls) return true;
+
+  // Adjacent-block unit split: OCR block cleanly read the numeric value ("340", "20.5")
+  // while classification merged the trailing unit ("340 /s", "340 m/s", "20.5 cm")
+  if (/^-?\d+(?:\.\d+)?$/.test(coreOcr) && coreCls.startsWith(coreOcr)) {
+    const trailing = coreCls.slice(coreOcr.length);
+    if (/^[a-z/%°²³^0-9-]+$/i.test(trailing) && trailing.length <= 6 && !/^\d/.test(trailing)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -354,6 +397,7 @@ export class HandwritingQualityService {
             normCls.length >= 3 &&
             normOcr !== normCls &&
             sim <= simThreshold &&
+            !isNonHandwritingDifference(link.ocrText, link.classificationText, link.isPrinted) &&
             !isMinorOcrArtifact(link.ocrText, link.classificationText, conf, Boolean(link.isWrongStep))
           ) {
             qMismatches.push({

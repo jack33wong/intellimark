@@ -90,12 +90,12 @@ export class SVGOverlayService {
       reasoningYOffset: -11
     },
     circleMark: {
-      baseRadius: 60,
-      baseFontSize: 30,
-      marginRight: 195,
-      marginTop: 70,
+      baseRadius: 54,
+      baseFontSize: 28,
+      marginRight: 75,
+      marginTop: 28,
       baseStrokeWidth: 8,
-      minRadius: 30,
+      minRadius: 28,
       minStrokeWidth: 4
     },
     totalScore: {
@@ -464,7 +464,7 @@ export class SVGOverlayService {
 
     // --- SCORES AND ANNOTATIONS ---
     if (hasScores) {
-      svg += this.createStudentScoreCircles(scoresArray, actualWidth, actualHeight);
+      svg += this.createStudentScoreCircles(scoresArray, actualWidth, actualHeight, inkMap);
     }
 
     // --- END-OF-QUESTION RUBRIC STAMPS (LEVEL OF RESPONSE) ---
@@ -807,8 +807,14 @@ export class SVGOverlayService {
         })
         .sort((a, b) => a.x - b.x);
 
+      const maxHorizontalSnap = Math.max(120, Math.round(actualWidth * 0.22));
+      const baseRightEdge = x + width;
       for (const sw of sameBandRects) {
         if (sw.x > rightEdgeOfStudentWork + maxContiguousGap) {
+          break;
+        }
+        // Never chain across wide answer-line prompts or jump > 22% of page width from the matched working block
+        if (sw.w > actualWidth * 0.30 || sw.x + sw.w > baseRightEdge + maxHorizontalSnap) {
           break;
         }
         if (sw.x + sw.w > rightEdgeOfStudentWork) {
@@ -1317,13 +1323,28 @@ export class SVGOverlayService {
     const haloStrokeWidth = Math.max(1.2, Number((3.5 * fontScaleFactor).toFixed(1)));
     const haloStyle = `paint-order="stroke fill" stroke="rgba(255, 255, 255, 0.88)" stroke-width="${haloStrokeWidth}px" stroke-linecap="round" stroke-linejoin="round"`;
 
-    // Draw a subtle teacher dotted pointer line if the reasoning block had to move noticeably away from symbol
+    // Draw a subtle teacher dotted pointer line only for short-to-medium offsets that do NOT cross heavy ink/drawings
     const gapBetween = this.rectDistance(symbolRect, chosenRect);
-    if (gapBetween > 60 * fontScaleFactor) {
+    const maxLeaderDistance = 260 * fontScaleFactor;
+    if (gapBetween > 60 * fontScaleFactor && gapBetween <= maxLeaderDistance) {
       const [sx, sy, tx, ty] = this.getClosestConnectorPoints(symbolRect, chosenRect);
-      const strokeW = Math.max(1.0, Number((2 * fontScaleFactor).toFixed(1)));
-      const dash = `${Math.max(2, Math.round(5 * fontScaleFactor))},${Math.max(2, Math.round(4 * fontScaleFactor))}`;
-      outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="${textColor}" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.70" stroke-linecap="round" />`;
+      let crossesHeavyInk = false;
+      if (inkMap) {
+        const probeSize = Math.max(12, Math.round(24 * fontScaleFactor));
+        for (const t of [0.33, 0.5, 0.67]) {
+          const px = sx + (tx - sx) * t - probeSize / 2;
+          const py = sy + (ty - sy) * t - probeSize / 2;
+          if (inkMap.getInkDensity(px, py, probeSize, probeSize) > 0.06) {
+            crossesHeavyInk = true;
+            break;
+          }
+        }
+      }
+      if (!crossesHeavyInk) {
+        const strokeW = Math.max(1.0, Number((2 * fontScaleFactor).toFixed(1)));
+        const dash = `${Math.max(2, Math.round(5 * fontScaleFactor))},${Math.max(2, Math.round(4 * fontScaleFactor))}`;
+        outSvg += `<line x1="${Math.round(sx)}" y1="${Math.round(sy)}" x2="${Math.round(tx)}" y2="${Math.round(ty)}" stroke="${textColor}" stroke-width="${strokeW}" stroke-dasharray="${dash}" opacity="0.70" stroke-linecap="round" />`;
+      }
     }
 
     // Subtle translucent white background pill with tight padding so comments blend naturally onto the paper
@@ -1558,23 +1579,57 @@ export class SVGOverlayService {
     return `<line x1="${x}" y1="${underlineY}" x2="${x + width}" y2="${underlineY}" stroke="#0066ff" stroke-width="${strokeWidth}" opacity="0.8" stroke-linecap="round"/>`;
   }
 
-  private static createStudentScoreCircles(scores: any[], imageWidth: number, imageHeight: number): string {
+  private static createStudentScoreCircles(scores: any[], imageWidth: number, imageHeight: number, inkMap?: InkDensityMap): string {
     if (!scores || scores.length === 0) return '';
     const scaleFactor = Math.min(
       imageHeight / this.CONFIG.baseReferenceHeight,
       imageWidth / 1650
     );
     const config = this.CONFIG.circleMark;
-    const circleRadius = Math.max(14, Math.round(config.baseRadius * 1.1 * scaleFactor));
+    const circleRadius = Math.max(14, Math.round(config.baseRadius * 1.05 * scaleFactor));
     const scoreFontSize = Math.max(9, Math.round(config.baseFontSize * scaleFactor));
     const strokeWidth = Math.max(1.5, Number((config.baseStrokeWidth * 0.85 * scaleFactor).toFixed(1)));
 
     let svg = '';
     scores.forEach((scoreItem, index) => {
       const scoreText = scoreItem.scoreText || '0/0';
-      const circleX = imageWidth - (circleRadius + config.marginRight * scaleFactor);
+      const defaultX = imageWidth - (circleRadius + config.marginRight * scaleFactor);
       const verticalGap = circleRadius * 2.5;
-      const circleY = circleRadius + (config.marginTop * scaleFactor) + (index * verticalGap);
+      const defaultY = circleRadius + (config.marginTop * scaleFactor) + (index * verticalGap);
+
+      let circleX = defaultX;
+      let circleY = defaultY;
+
+      // Avoid colliding with line 1 printed question text in the top-right header corner
+      if (inkMap && index === 0) {
+        const defaultInk = inkMap.getInkDensity(
+          defaultX - circleRadius,
+          defaultY - circleRadius,
+          circleRadius * 2,
+          circleRadius * 2
+        );
+        if (defaultInk > 0.03) {
+          const candidates = [
+            { x: imageWidth - circleRadius - Math.round(28 * scaleFactor), y: circleRadius + Math.round(18 * scaleFactor) },
+            { x: defaultX, y: circleRadius + Math.round(16 * scaleFactor) },
+            { x: imageWidth - circleRadius - Math.round(28 * scaleFactor), y: defaultY }
+          ];
+          let bestInk = defaultInk;
+          for (const cand of candidates) {
+            const cInk = inkMap.getInkDensity(
+              cand.x - circleRadius,
+              cand.y - circleRadius,
+              circleRadius * 2,
+              circleRadius * 2
+            );
+            if (cInk < bestInk - 0.005) {
+              bestInk = cInk;
+              circleX = cand.x;
+              circleY = cand.y;
+            }
+          }
+        }
+      }
 
       const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" fill="rgba(255, 255, 255, 0.90)" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
       const fractionMatch = String(scoreText).trim().match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
@@ -2012,9 +2067,36 @@ export class SVGOverlayService {
         h: Math.max(80, diagMaxY - diagMinY)
       };
 
-      // Build compact checklist rows
-      const earnedCount = group.filter(a => a.action === 'tick').length;
-      const totalCount = group.length;
+      // Build compact checklist rows — sum mark tokens (e.g. merged "B1 B1 B1" = 3 marks, "B0" = 1 mark)
+      const countAnnotationMarks = (anno: Annotation): { earned: number; total: number } => {
+        const rawText = String(anno.text || '').trim();
+        const isTick = anno.action === 'tick';
+        const tokens = rawText.match(/[A-Z]+(\d+)/gi);
+        if (tokens && tokens.length > 0) {
+          let earned = 0;
+          let total = 0;
+          for (const tok of tokens) {
+            const numMatch = tok.match(/(\d+)$/);
+            const val = numMatch ? parseInt(numMatch[1], 10) : (isTick ? 1 : 0);
+            if (val > 0) {
+              earned += val;
+              total += val;
+            } else {
+              total += 1;
+            }
+          }
+          return { earned: isTick ? earned : 0, total: Math.max(1, total) };
+        }
+        return { earned: isTick ? 1 : 0, total: 1 };
+      };
+
+      let earnedCount = 0;
+      let totalCount = 0;
+      for (const a of group) {
+        const m = countAnnotationMarks(a);
+        earnedCount += m.earned;
+        totalCount += m.total;
+      }
       const cleanSubLabel = subQ.replace(/^Q/i, '');
       const headerText = `Q${cleanSubLabel} Check (${earnedCount}/${totalCount})`;
 

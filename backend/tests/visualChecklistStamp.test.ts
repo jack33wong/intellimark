@@ -75,6 +75,45 @@ describe('SVGOverlayService Visual Checklist Stamp (space-gated)', () => {
     expect(svg).toContain('B0');
   });
 
+  it('sums merged mark tokens (e.g. "B1 B1 B1" + "B0") as 3/4 marks instead of 1/2 rows', () => {
+    const mergedVisualAnnotations = [
+      {
+        action: 'tick',
+        text: 'B1 B1 B1',
+        subQuestion: '6a',
+        ocr_match_status: 'VISUAL',
+        line_id: 'p0_visual_drawing_6_2',
+        reasoning: 'Correctly labeled crest C; Correctly labeled trough T; Correct wavelength W',
+        bbox: [458, 1706, 300, 120]
+      },
+      {
+        action: 'cross',
+        text: 'B0',
+        subQuestion: '6a',
+        ocr_match_status: 'VISUAL',
+        line_id: 'p0_visual_drawing_6_2',
+        reasoning: 'A must be rest to crest',
+        bbox: [458, 1706, 300, 120]
+      }
+    ];
+
+    const svg = (SVGOverlayService as any).createSVGOverlay(
+      mergedVisualAnnotations,
+      2000,
+      2815,
+      { width: 2000, height: 2815 },
+      undefined,
+      undefined,
+      false,
+      [],
+      false,
+      makeInkMap(0.01)
+    );
+
+    expect(svg).toContain('class="visual-checklist-stamp"');
+    expect(svg).toContain('Q6a Check (3/4)');
+  });
+
   it('does not convert normal algebraic/non-visual sub-questions into checklist stamps', () => {
     const algebraAnnotations = [
       {

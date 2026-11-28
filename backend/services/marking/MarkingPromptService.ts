@@ -164,6 +164,7 @@ ${genericHeader}
 > 1. **MARK EVERY SUB-QUESTION**: Output \`B1\`/\`M1\`/\`A1\` or \`B0\`/\`M0\`/\`A0\` for EVERY attempted sub-question below. Never skip a part.
 > 2. **RESPECT BUDGETS & MATCH TICK COUNT**: Do not exceed \`[MAX SCORE]\` (or printed \`[ X marks ]\`). If a part is worth N marks and earns full marks, emit N one-mark ticks (e.g. M1, M1, A1) across working lines.
 > 3. **FINAL-LINE CROSS & CONCISE REASONING**: Anchor a single \`B0\`/\`A0\` cross on the final line of that part. Keep \`reasoning\` ≤ 8 words (≤ 55 chars), without duplicating \`; ans: <value>\` if already stated.
+> 4. **SOLVE INDEPENDENTLY FIRST (NO CONFIRMATION BIAS)**: For MCQs, evaluate ALL options (A–D) against every physical/factual constraint in the question stem before checking the student's choice. For labelled diagrams, trace the exact start and end points of each handwritten bracket/arrow directly on the image (e.g. central rest axis to crest vs peak-to-peak) before judging it wrong.
 ${subQBreakdown}`;
         }
 
